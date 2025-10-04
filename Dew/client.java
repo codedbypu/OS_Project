@@ -57,6 +57,7 @@ class client {
                 String[] parts = line.split(" ", 3);
                 if (parts.length >= 3) {//แบ่งเป็น 3 ส่วน (ClientIDส่ง + ClientIDรับ + TEXT)
                     sendCommand(out, new Command("DM", clientId, Map.of("target", parts[1], "text", parts[2])));
+                    //map.of คือการ map ที่รวดเร็วขึ้น put key-value สลับกันไป
                 }
 
             } else if (line.startsWith("/who ")) {
