@@ -19,8 +19,12 @@
 
 import java.io.Console;
 import java.util.Scanner;
+import java.util.LinkedList;
+import java.util.Queue;
 
 public class Server_Os {
+    private Queue<String> control_queue = new LinkedList<>();
+
     public String Pre_client() {
         Scanner sc = new Scanner(System.in);
         System.out.println("============= All Instructions =============\n" +
@@ -30,18 +34,39 @@ public class Server_Os {
                 "SAY \"#room_name\" \"message\"     #send a message to everyone in the room#\r\n" +
                 "LEAVE \"#room_name\"             #leave the room#\r\n" +
                 "QUIT                           #exit the program# \r\n" +
-                "============================================\n");
-
+                "============================================");
         System.out.print("Your Instruction: ");
         String instruction = sc.nextLine();
         return instruction;
     }
 
+    public void Router() {
+        if (control_queue.isEmpty()) {
+            return;
+        }
+
+        String cur_instruction = control_queue.poll();
+
+        for (int i = 0; i < cur_instruction.length(); i++) {
+            char character = cur_instruction.charAt(i);
+            if (character == ' ')
+                continue;
+            System.out.print(character);
+        }
+        System.out.println();
+        
+    }
+
     public void main(String[] args) {
         String cur_instruction;
-        cur_instruction = Pre_client();
-        System.out.print("current insruction : " + cur_instruction);
 
+        while (true) {
+            cur_instruction = Pre_client();
+            control_queue.add(cur_instruction);
+            System.out.println("Current Insruction : " + cur_instruction);
+            System.out.println("Control Queue : " + control_queue + "\n");
+            Router();
+        }
     }
 
 }
