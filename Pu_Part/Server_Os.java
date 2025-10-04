@@ -40,8 +40,7 @@ public class Server_Os {
     }
 
     public void Router() {
-        if (control_queue.isEmpty())
-            return;
+        if (control_queue.isEmpty())return;
 
         String cur_instruction = control_queue.poll().trim();
         if (cur_instruction.isEmpty()) {
@@ -65,17 +64,17 @@ public class Server_Os {
 
         if (command.equals("JOIN")) {
             System.out.println(">>> เข้าห้อง: " + param1);
-
             // TODO: เรียก RoomRegistry.joinRoom(param1, clientId);
-
+            
         } else if (command.equals("SAY")) {
-            System.out.println(">>> พูดในห้อง " + param1 + " : " + param2);
+            System.out.println(">>> พูดในห้อง " + param1 + ": " + param2);
             // TODO: broadcast ไปยังสมาชิกในห้อง
 
         } else if (command.equals("DM")) {
-            System.out.println(">>> ส่งข้อความส่วนตัวถึง " + param1 + " : " + param2);
+            System.out.println(">>> ส่งข้อความส่วนตัวถึง " + param1 + ": " + param2);
             // TODO: ส่งตรงไปยัง reply queue ของผู้รับ
 
+            
         } else if (command.equals("WHO")) {
             System.out.println(">>> ขอรายชื่อสมาชิกในห้อง " + param1);
             // TODO: ดึงจาก RoomRegistry.getMembers(param1);
@@ -91,6 +90,7 @@ public class Server_Os {
         } else {
             System.out.println("Unknown command: " + command);
         }
+
     }
 
     public static void main(String[] args) {
