@@ -18,7 +18,7 @@ public class ReplyQueueExample {
             try {
                 while (true) {
                     String message = replyQueue.take(); // รอจนกว่าจะมีข้อความ
-                    System.out.println("กล้วย " + message);
+                    System.out.println("🙈" + message);
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
