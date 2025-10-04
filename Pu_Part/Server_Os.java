@@ -18,3 +18,26 @@
 //Server ก็ต้องส่งข้อความหาทุกคนเป็น system even เช่น “Alice joined”, “ห้องว่างแล้ว” -> ลบห้องนะ
 
 import java.util.Scanner;
+
+public class Server_Os {
+    public void Pre_client() {
+        Scanner sc = new Scanner(System.in);
+        System.out.println("Instruction"
+                        "DM \"ชื่อคนผู้รับ\" \"ข้อความ\"  #ส่งตรงถึงเพื่อนเจาะจงคน#\r\n" + //
+                        "JOIN \"#ชื่อห้อง\"          #เข้าห้อง#\r\n" + //
+                        "WHO \"#ชื่อห้อง\"           #ใช้ดูว่าห้องนี้มีใครบ้าง#\r\n" + //
+                        "SAY \"#ชื่อห้อง\" \"ข้อความ\"  #ส่งข้อความถึงทุกคนในห้อง#\r\n" + //
+                        "LEAVE \"#ชื่อห้อง\"         #ออกจากห้อง#\r\n" + //
+                        "QUIT                   #ออกโปรแกรม#");
+        System.out.print("Your Instruction: ");
+        String name = sc.nextLine();
+    }
+
+    public void main(String[] args) {
+        while (true) {
+            Pre_client();
+        }
+        
+    }
+
+}
