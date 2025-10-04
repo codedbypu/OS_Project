@@ -22,7 +22,7 @@ import java.util.Scanner;
 public class Server_Os {
     public void Pre_client() {
         Scanner sc = new Scanner(System.in);
-        System.out.println("Instruction"
+        System.out.println("All Instruction"\r\n +
                         "DM \"ชื่อคนผู้รับ\" \"ข้อความ\"  #ส่งตรงถึงเพื่อนเจาะจงคน#\r\n" + //
                         "JOIN \"#ชื่อห้อง\"          #เข้าห้อง#\r\n" + //
                         "WHO \"#ชื่อห้อง\"           #ใช้ดูว่าห้องนี้มีใครบ้าง#\r\n" + //
