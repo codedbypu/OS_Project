@@ -8,7 +8,32 @@ class client {
     public static void main(String[] args) throws Exception {
         Scanner sc = new Scanner(System.in);
         System.out.print("Enter your name: ");
-        String clientId = sc.nextLine();
+        String clientId;
+        while (true) {
+            clientId = sc.nextLine().trim();
+            if (clientId.isEmpty()) {
+            System.out.print("ชื่อห้ามว่าง ใส่อีกครั้ง: ");
+            continue;
+            }
+            File store = new File(System.getProperty("user.home"), ".banana_client_names");
+            Set<String> names = new HashSet<>();
+            if (store.exists()) {
+            try (BufferedReader br = new BufferedReader(new FileReader(store))) {
+                String line;
+                while ((line = br.readLine()) != null) {
+                names.add(line.trim());
+                }
+            } catch (IOException ignored) {}
+            }
+            if (names.contains(clientId)) {
+            System.out.print("ชื่อนี้ถูกใช้แล้ว ใส่อีกชื่อ: ");
+            continue;
+            }
+            try (FileWriter fw = new FileWriter(store, true)) {
+            fw.write(clientId + System.lineSeparator());
+            } catch (IOException ignored) {}
+            break;
+        }
 
         Socket socket = new Socket("localhost", 5000);
         ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
