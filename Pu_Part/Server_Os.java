@@ -1,33 +1,39 @@
 import java.util.Scanner;
 import java.util.Set;
+import java.net.ServerSocket;
 import java.util.LinkedList;
 import java.util.Queue;
 
 public class Server_Os {
-    private Queue<String> control_queue = new LinkedList<>();
+    private static final int PORT = 5000;
+    private Queue<String> controlQueue = new LinkedList<>();
     private RoomRegistry roomRegistry = new RoomRegistry();
+    private ClientRegistry clientRegistry = new ClientRegistry();
+    private BroadcasterPool broadcasterPool = new BroadcasterPool(3, roomRegistry);
+
+    // จำลองชื่อ client
     private String clientId = "Alice";
 
     public String Pre_client() {
         Scanner sc = new Scanner(System.in);
         System.out.println("============================= All Instructions =============================\n" +
-                "DM \"receiver_name\" \"message\"   #send a direct message to a specific friend#\r\n" +
-                "JOIN \"#room_name\"              #join a chat room#\r\n" +
-                "WHO \"#room_name\"               #see who is in the room#\r\n" +
-                "SAY \"#room_name\" \"message\"     #send a message to everyone in the room#\r\n" +
-                "LEAVE \"#room_name\"             #leave the room#\r\n" +
-                "QUIT                           #exit the program# \r\n" +
+                "DM <receiver_name> <message>   # send a direct message to a specific friend\r\n" +
+                "JOIN <#room_name>              # join a chat room\r\n" +
+                "WHO <#room_name>               # see who is in the room\r\n" +
+                "SAY <#room_name> <message>     # send a message to everyone in the room\r\n" +
+                "LEAVE <#room_name>             # leave the room\r\n" +
+                "QUIT                           # exit the program \r\n" +
                 "============================================================================");
-        System.out.print("Your Instruction: ");
+        System.out.print("Instruction: ");
         String instruction = sc.nextLine();
         return instruction;
     }
 
     public void Router() {
-        if (control_queue.isEmpty())
+        if (controlQueue.isEmpty())
             return;
 
-        String cur_instruction = control_queue.poll().trim();
+        String cur_instruction = controlQueue.poll().trim();
         if (cur_instruction.isEmpty()) {
             System.out.println("Command : ERROR");
             return;
@@ -43,41 +49,49 @@ public class Server_Os {
         String param1 = (parts.length > 1) ? parts[1] : "";
         String param2 = (parts.length > 2) ? parts[2] : "";
 
-        if (command.equals("JOIN")) { //JOIN
-            System.out.println(">>> เข้าห้อง: " + param1);
+        if (command.equals("JOIN")) { // JOIN
             roomRegistry.joinRoom(param1, clientId);
 
         } else if (command.equals("SAY")) {
-            System.out.println(">>> พูดในห้อง " + param1 + ": " + param2);
-            // TODO: broadcast ไปยังสมาชิกในห้อง
+            String roomName = param1;
+            String message = param2;
 
+            if (roomRegistry.isMember(roomName, clientId)) {
+                BroadcastTask task = new BroadcastTask(roomName, clientId + ": " + message);
+                broadcasterPool.submitTask(task);
+            } else {
+                System.out.println("(Server): You are not in room " + roomName + " Can't send message");
+            }
 
         } else if (command.equals("DM")) {
-            System.out.println(">>> ส่งข้อความส่วนตัวถึง " + param1 + ": " + param2);
-            // TODO: ส่งตรงไปยัง reply queue ของผู้รับ
+            String receiver = param1;
+            String message = param2;
 
+            if (clientRegistry.hasClient(receiver)) {
+                String formatted = "[DM from " + clientId + "] " + message;
+                clientRegistry.sendDirectMessage(receiver, formatted);
+            } else {
+                System.out.println("(System): ไม่พบผู้รับชื่อ " + receiver);
+            }
 
-        } else if (command.equals("WHO")) { //WHO
-            System.out.println(">>> ขอรายชื่อสมาชิกในห้อง " + param1);
-            Set<String> members = roomRegistry.getMembers(param1);
-            System.out.println("Members in " + param1 + ": " + members);
+        } else if (command.equals("WHO")) { // WHO
+            if (roomRegistry.isMember(param1, clientId)) {
+                Set<String> members = roomRegistry.getMembers(param1);
+                System.out.println("Members in " + param1 + ": " + members);
+            } else {
+                System.out.println("(Server): You are not in room " + param1);
+            }
 
-        } else if (command.equals("LEAVE")) { //LEAVE
-            System.out.println(">>> ออกจากห้อง " + param1);
+        } else if (command.equals("LEAVE")) { // LEAVE
             roomRegistry.leaveRoom(param1, clientId);
 
-        } else if (command.equals("QUIT")) { //QUIT
-            System.out.println(">>> ออกจากโปรแกรม");
+        } else if (command.equals("QUIT")) { // QUIT
+            System.out.println(">>> Exit the program");
             System.exit(0);
 
         } else {
             System.out.println("Unknown command: " + command);
         }
-
-    }
-
-    public void Broadcaster_Pool() {
-
     }
 
     public static void main(String[] args) {
@@ -86,8 +100,7 @@ public class Server_Os {
 
         while (true) {
             cur_instruction = server.Pre_client();
-            server.control_queue.add(cur_instruction);
-            // System.out.println("Control Queue : " + server.control_queue);
+            server.controlQueue.add(cur_instruction);
             server.Router();
             System.out.println();
         }
