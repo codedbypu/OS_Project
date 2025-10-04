@@ -18,11 +18,14 @@
 //Server ก็ต้องส่งข้อความหาทุกคนเป็น system even เช่น “Alice joined”, “ห้องว่างแล้ว” -> ลบห้องนะ
 
 import java.util.Scanner;
+import java.util.Set;
 import java.util.LinkedList;
 import java.util.Queue;
 
 public class Server_Os {
     private Queue<String> control_queue = new LinkedList<>();
+    private RoomRegistry roomRegistry = new RoomRegistry();
+    private String clientId = "Alice";
 
     public String Pre_client() {
         Scanner sc = new Scanner(System.in);
@@ -40,7 +43,8 @@ public class Server_Os {
     }
 
     public void Router() {
-        if (control_queue.isEmpty())return;
+        if (control_queue.isEmpty())
+            return;
 
         String cur_instruction = control_queue.poll().trim();
         if (cur_instruction.isEmpty()) {
@@ -58,14 +62,10 @@ public class Server_Os {
         String param1 = (parts.length > 1) ? parts[1] : "";
         String param2 = (parts.length > 2) ? parts[2] : "";
 
-        // System.out.println("Command : " + command);
-        // System.out.println("Parameter1 : " + param1);
-        // System.out.println("Parameter2 : " + param2);
-
         if (command.equals("JOIN")) {
             System.out.println(">>> เข้าห้อง: " + param1);
-            // TODO: เรียก RoomRegistry.joinRoom(param1, clientId);
-            
+            roomRegistry.joinRoom(param1, clientId);
+
         } else if (command.equals("SAY")) {
             System.out.println(">>> พูดในห้อง " + param1 + ": " + param2);
             // TODO: broadcast ไปยังสมาชิกในห้อง
@@ -74,10 +74,10 @@ public class Server_Os {
             System.out.println(">>> ส่งข้อความส่วนตัวถึง " + param1 + ": " + param2);
             // TODO: ส่งตรงไปยัง reply queue ของผู้รับ
 
-            
         } else if (command.equals("WHO")) {
             System.out.println(">>> ขอรายชื่อสมาชิกในห้อง " + param1);
-            // TODO: ดึงจาก RoomRegistry.getMembers(param1);
+            Set<String> members = roomRegistry.getMembers(param1);
+            System.out.println("Members in " + param1 + ": " + members);
 
         } else if (command.equals("LEAVE")) {
             System.out.println(">>> ออกจากห้อง " + param1);
@@ -100,7 +100,7 @@ public class Server_Os {
         while (true) {
             cur_instruction = server.Pre_client();
             server.control_queue.add(cur_instruction);
-            //System.out.println("Control Queue : " + server.control_queue);
+            // System.out.println("Control Queue : " + server.control_queue);
             server.Router();
             System.out.println();
         }
