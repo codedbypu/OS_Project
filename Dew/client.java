@@ -75,4 +75,13 @@ class client {
         socket.close();//disconnected code from server-side
 
     }
+
+    private static void sendCommand(ObjectOutputStream out, Command cmd) {
+        try {
+            out.writeObject(cmd);//แปลง object ให้เป็นลำดับของไบต์ (Serialization)
+            out.flush();//บังคับให้ข้อมูลทั้งหมดที่อยู่ใน Buffer เขียนออกไปทันทีและล้าง Buffer นั้น
+        } catch (IOException e) {
+            System.out.println("Failed to send command");
+        }
+    }
 }
