@@ -6,7 +6,7 @@ import java.nio.channels.ScatteringByteChannel;
 import java.util.*;
 import java.util.concurrent.*;
 
-class chatclient {
+class client {
 //"throws" = จะไม่จัดการกับข้อผิดพลาดเหล่านั้นเอง แต่จะ "โยน" ข้อผิดพลาดนั้นไปให้เมธอดที่เรียกมันมาจัดการแทน
     public static void main(String[] args) throws Exception {
         Scanner sc = new Scanner(System.in);
@@ -64,7 +64,7 @@ class chatclient {
                 sendCommand(out, new Command("WHO", clientId, Map.of("room", room)));
 
             } else if (line.startsWith("/leave ")) {
-                String room = line.substring(7).trim();
+                String room = line.substring(7).trim();//sometimes join many room
                 sendCommand(out, new Command("LEAVE", clientId, Map.of("room", room)));
 
             } else {
@@ -73,10 +73,6 @@ class chatclient {
         }
 
         socket.close();//disconnected code from server-side
+
     }
-}
-
-
-public class client {
-    
 }
