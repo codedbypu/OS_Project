@@ -37,6 +37,15 @@ class client {
 
         //correct input instruction from user
         while (true) {
+            System.out.println("============================= All Instructions =============================\n" +
+                "DM \"receiver_name\" \"message\"   #send a direct message to a specific friend#\r\n" +
+                "JOIN \"#room_name\"              #join a chat room#\r\n" +
+                "WHO \"#room_name\"               #see who is in the room#\r\n" +
+                "SAY \"#room_name\" \"message\"     #send a message to everyone in the room#\r\n" +
+                "LEAVE \"#room_name\"             #leave the room#\r\n" +
+                "QUIT                           #exit the program# \r\n" +
+                "============================================================================");
+            System.out.print("Your Instruction: ");
             String line = sc.nextLine();
 
             if (line.equalsIgnoreCase("/quit")) { //ไม่สน lower-upper case
