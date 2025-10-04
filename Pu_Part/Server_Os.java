@@ -62,7 +62,7 @@ public class Server_Os {
         String param1 = (parts.length > 1) ? parts[1] : "";
         String param2 = (parts.length > 2) ? parts[2] : "";
 
-        if (command.equals("JOIN")) {
+        if (command.equals("JOIN")) { //JOIN
             System.out.println(">>> เข้าห้อง: " + param1);
             roomRegistry.joinRoom(param1, clientId);
 
@@ -74,16 +74,16 @@ public class Server_Os {
             System.out.println(">>> ส่งข้อความส่วนตัวถึง " + param1 + ": " + param2);
             // TODO: ส่งตรงไปยัง reply queue ของผู้รับ
 
-        } else if (command.equals("WHO")) {
+        } else if (command.equals("WHO")) { //WHO
             System.out.println(">>> ขอรายชื่อสมาชิกในห้อง " + param1);
             Set<String> members = roomRegistry.getMembers(param1);
             System.out.println("Members in " + param1 + ": " + members);
 
-        } else if (command.equals("LEAVE")) {
+        } else if (command.equals("LEAVE")) { //LEAVE
             System.out.println(">>> ออกจากห้อง " + param1);
-            // TODO: RoomRegistry.leaveRoom(param1, clientId);
+            roomRegistry.leaveRoom(param1, clientId);
 
-        } else if (command.equals("QUIT")) {
+        } else if (command.equals("QUIT")) { //QUIT
             System.out.println(">>> ออกจากโปรแกรม");
             System.exit(0);
 
