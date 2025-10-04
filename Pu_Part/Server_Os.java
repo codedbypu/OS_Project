@@ -70,9 +70,11 @@ public class Server_Os {
             System.out.println(">>> พูดในห้อง " + param1 + ": " + param2);
             // TODO: broadcast ไปยังสมาชิกในห้อง
 
+
         } else if (command.equals("DM")) {
             System.out.println(">>> ส่งข้อความส่วนตัวถึง " + param1 + ": " + param2);
             // TODO: ส่งตรงไปยัง reply queue ของผู้รับ
+
 
         } else if (command.equals("WHO")) { //WHO
             System.out.println(">>> ขอรายชื่อสมาชิกในห้อง " + param1);
@@ -91,6 +93,10 @@ public class Server_Os {
             System.out.println("Unknown command: " + command);
         }
 
+    }
+
+    public void Broadcaster_Pool() {
+        
     }
 
     public static void main(String[] args) {
