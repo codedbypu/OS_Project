@@ -59,13 +59,13 @@ public class Server_Os {
         String param1 = (parts.length > 1) ? parts[1] : "";
         String param2 = (parts.length > 2) ? parts[2] : "";
 
-        System.out.println("Command : " + command);
-        System.out.println("Parameter1 : " + param1);
-        System.out.println("Parameter2 : " + param2);
+        // System.out.println("Command : " + command);
+        // System.out.println("Parameter1 : " + param1);
+        // System.out.println("Parameter2 : " + param2);
 
         if (command.equals("JOIN")) {
             System.out.println(">>> เข้าห้อง: " + param1);
-            
+
             // TODO: เรียก RoomRegistry.joinRoom(param1, clientId);
 
         } else if (command.equals("SAY")) {
@@ -100,9 +100,9 @@ public class Server_Os {
         while (true) {
             cur_instruction = server.Pre_client();
             server.control_queue.add(cur_instruction);
-            System.out.println("Current Insruction : " + cur_instruction);
-            System.out.println("Control Queue : " + server.control_queue + "\n");
+            //System.out.println("Control Queue : " + server.control_queue);
             server.Router();
+            System.out.println();
         }
     }
 
