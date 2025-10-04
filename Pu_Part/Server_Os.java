@@ -17,27 +17,56 @@
 
 //Server ก็ต้องส่งข้อความหาทุกคนเป็น system even เช่น “Alice joined”, “ห้องว่างแล้ว” -> ลบห้องนะ
 
+import java.io.Console;
 import java.util.Scanner;
+import java.util.LinkedList;
+import java.util.Queue;
 
 public class Server_Os {
-    public void Pre_client() {
+    private Queue<String> control_queue = new LinkedList<>();
+
+    public String Pre_client() {
         Scanner sc = new Scanner(System.in);
-        System.out.println("Instruction"
-                        "DM \"ชื่อคนผู้รับ\" \"ข้อความ\"  #ส่งตรงถึงเพื่อนเจาะจงคน#\r\n" + //
-                        "JOIN \"#ชื่อห้อง\"          #เข้าห้อง#\r\n" + //
-                        "WHO \"#ชื่อห้อง\"           #ใช้ดูว่าห้องนี้มีใครบ้าง#\r\n" + //
-                        "SAY \"#ชื่อห้อง\" \"ข้อความ\"  #ส่งข้อความถึงทุกคนในห้อง#\r\n" + //
-                        "LEAVE \"#ชื่อห้อง\"         #ออกจากห้อง#\r\n" + //
-                        "QUIT                   #ออกโปรแกรม#");
+        System.out.println("============= All Instructions =============\n" +
+                "DM \"receiver_name\" \"message\"   #send a direct message to a specific friend#\r\n" +
+                "JOIN \"#room_name\"              #join a chat room#\r\n" +
+                "WHO \"#room_name\"               #see who is in the room#\r\n" +
+                "SAY \"#room_name\" \"message\"     #send a message to everyone in the room#\r\n" +
+                "LEAVE \"#room_name\"             #leave the room#\r\n" +
+                "QUIT                           #exit the program# \r\n" +
+                "============================================");
         System.out.print("Your Instruction: ");
-        String name = sc.nextLine();
+        String instruction = sc.nextLine();
+        return instruction;
+    }
+
+    public void Router() {
+        if (control_queue.isEmpty()) {
+            return;
+        }
+
+        String cur_instruction = control_queue.poll();
+
+        for (int i = 0; i < cur_instruction.length(); i++) {
+            char character = cur_instruction.charAt(i);
+            if (character == ' ')
+                continue;
+            System.out.print(character);
+        }
+        System.out.println();
+        
     }
 
     public void main(String[] args) {
+        String cur_instruction;
+
         while (true) {
-            Pre_client();
+            cur_instruction = Pre_client();
+            control_queue.add(cur_instruction);
+            System.out.println("Current Insruction : " + cur_instruction);
+            System.out.println("Control Queue : " + control_queue + "\n");
+            Router();
         }
-        
     }
 
 }
