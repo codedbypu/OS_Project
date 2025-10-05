@@ -19,11 +19,9 @@ class ClientCommand {
 }
 
 public class Server_Os {
-    private static final int PORT = 5000;
-    private final BlockingQueue<ClientCommand> controlQueue = new LinkedBlockingQueue<>();
-    private final RoomRegistry roomRegistry = new RoomRegistry();
-    private final ClientRegistry clientRegistry = new ClientRegistry();
-    private final BroadcasterPool broadcasterPool = new BroadcasterPool(3, roomRegistry, clientRegistry);
+    private Queue<String> control_queue = new LinkedList<>();
+    private RoomRegistry roomRegistry = new RoomRegistry();
+    private String clientId = "Bob";
 
     public static void main(String[] args) {
         new Server_Os().startServer();
