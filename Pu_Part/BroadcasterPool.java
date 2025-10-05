@@ -1,15 +1,14 @@
+import java.util.Set;
 import java.util.concurrent.*;
 
 public class BroadcasterPool {
     private final BlockingQueue<BroadcastTask> taskQueue = new LinkedBlockingQueue<>();
     private final ExecutorService pool;
 
-    public BroadcasterPool(int numThreads, RoomRegistry roomRegistry) {
+     public BroadcasterPool(int numThreads, RoomRegistry roomRegistry, ClientRegistry clientRegistry) {
         pool = Executors.newFixedThreadPool(numThreads);
-
-        // สร้าง thread workers
         for (int i = 0; i < numThreads; i++) {
-            pool.submit(new Broadcaster(taskQueue, roomRegistry));
+            pool.submit(new Broadcaster(taskQueue, roomRegistry, clientRegistry));
         }
     }
 
@@ -18,38 +17,36 @@ public class BroadcasterPool {
         taskQueue.offer(task);
     }
 
-    // ปิดระบบ
-    public void shutdown() {
-        pool.shutdownNow();
-    }
-
     public class Broadcaster implements Runnable {
         private BlockingQueue<BroadcastTask> taskQueue;
         private RoomRegistry roomRegistry;
+        private ClientRegistry clientRegistry;
 
-        public Broadcaster(BlockingQueue<BroadcastTask> taskQueue, RoomRegistry roomRegistry) {
+        public Broadcaster(BlockingQueue<BroadcastTask> taskQueue, RoomRegistry roomRegistry,
+                ClientRegistry clientRegistry) {
             this.taskQueue = taskQueue;
             this.roomRegistry = roomRegistry;
+            this.clientRegistry = clientRegistry;
         }
 
         @Override
         public void run() {
-            while (true) {
-                try {
-                    // ดึงงานจาก queue
-                    BroadcastTask task = taskQueue.take();
+            try {
+                while (true) {
+                    BroadcastTask task = taskQueue.take(); // ดึงงานออกมาทำ
                     String room = task.getRoomName();
                     String message = task.getMessage();
 
-                    System.out.println("[Room: " + room + "] " + message);
-                    // ส่งข้อความถึงทุกคนในห้อง
-                    for (String member : roomRegistry.getMembers(room)) {
-                        // TODO: ในระบบจริงจะต้องส่งเข้า reply queue ของ member
+                    Set<String> members = roomRegistry.getMembers(room);
+                    if (members == null || members.isEmpty())
+                        continue;
+
+                    for (String member : members) {
+                        clientRegistry.sendDirectMessage(member, "["+ room +"]" + message);
                     }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break; // หยุด thread ถ้าโดน interrupt
                 }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
         }
     }

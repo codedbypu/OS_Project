@@ -31,6 +31,7 @@ class client {
             }
             try (FileWriter fw = new FileWriter(store, true)) {
             fw.write(clientId + System.lineSeparator());
+            
             } catch (IOException ignored) {}
             break;
         }

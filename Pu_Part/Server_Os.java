@@ -1,109 +1,159 @@
-import java.util.Scanner;
-import java.util.Set;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.net.ServerSocket;
-import java.util.LinkedList;
-import java.util.Queue;
+import java.net.Socket;
+import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+
+import Other.Server_Os;
+
+class ClientCommand {
+    public final String clientId;
+    public final String command;
+
+    public ClientCommand(String clientId, String command) {
+        this.clientId = clientId;
+        this.command = command;
+    }
+}
 
 public class Server_Os {
     private static final int PORT = 5000;
-    private Queue<String> controlQueue = new LinkedList<>();
-    private RoomRegistry roomRegistry = new RoomRegistry();
-    private ClientRegistry clientRegistry = new ClientRegistry();
-    private BroadcasterPool broadcasterPool = new BroadcasterPool(3, roomRegistry);
+    private final BlockingQueue<ClientCommand> controlQueue = new LinkedBlockingQueue<>();
+    private final RoomRegistry roomRegistry = new RoomRegistry();
+    private final ClientRegistry clientRegistry = new ClientRegistry();
+    private final BroadcasterPool broadcasterPool = new BroadcasterPool(3, roomRegistry, clientRegistry);
 
-    // จำลองชื่อ client
-    private String clientId = "Alice";
-
-    public String Pre_client() {
-        Scanner sc = new Scanner(System.in);
-        System.out.println("============================= All Instructions =============================\n" +
-                "DM <receiver_name> <message>   # send a direct message to a specific friend\r\n" +
-                "JOIN <#room_name>              # join a chat room\r\n" +
-                "WHO <#room_name>               # see who is in the room\r\n" +
-                "SAY <#room_name> <message>     # send a message to everyone in the room\r\n" +
-                "LEAVE <#room_name>             # leave the room\r\n" +
-                "QUIT                           # exit the program \r\n" +
-                "============================================================================");
-        System.out.print("Instruction: ");
-        String instruction = sc.nextLine();
-        return instruction;
+    public static void main(String[] args) {
+        new Server_Os().startServer();
     }
 
-    public void Router() {
-        if (controlQueue.isEmpty())
-            return;
-
-        String cur_instruction = controlQueue.poll().trim();
-        if (cur_instruction.isEmpty()) {
-            System.out.println("Command : ERROR");
-            return;
+    public void startServer() {
+        new Thread(this::routerLoop, "RouterThread").start();
+        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+            System.out.println("[System] Server started on port " + PORT);
+            while (true) {
+                Socket socket = serverSocket.accept();
+                new Thread(new ClientHandler(socket), "ClientHandler").start();
+                System.out.println("[System] New client connected: " + socket.getInetAddress());
+            }
+        } catch (IOException e) {
+            System.out.println("[System] Server error!");
+            e.printStackTrace();
         }
+    }
 
-        // แยกคำสั่งตามช่องว่าง
-        String[] parts = cur_instruction.split(" ", 4);
+    private void routerLoop() {
+        while (true) {
+            try {
+                ClientCommand cmd = controlQueue.take();
+                processCommand(cmd);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+    }
+
+    private void processCommand(ClientCommand cmd) {
+        if (cmd.command.isEmpty())
+            return;
+
+        String[] parts = cmd.command.split(" ", 4);
         if (parts.length > 3) {
-            System.out.println("Command : ERROR");
             return;
         }
         String command = parts[0].toUpperCase();
         String param1 = (parts.length > 1) ? parts[1] : "";
         String param2 = (parts.length > 2) ? parts[2] : "";
 
-        if (command.equals("JOIN")) { // JOIN
-            roomRegistry.joinRoom(param1, clientId);
+        if (command.equals("JOIN")) {
+            clientRegistry.sendDirectMessage(cmd.clientId, ">>> Join room: " + param1);
+            roomRegistry.joinRoom(param1, cmd.clientId);
+            broadcasterPool.submitTask(new BroadcastTask(param1, ": " + cmd.clientId + " joined the room."));
 
         } else if (command.equals("SAY")) {
-            String roomName = param1;
-            String message = param2;
-
-            if (roomRegistry.isMember(roomName, clientId)) {
-                BroadcastTask task = new BroadcastTask(roomName, clientId + ": " + message);
+            if (roomRegistry.isMember(param1, cmd.clientId)) {
+                clientRegistry.sendDirectMessage(cmd.clientId, ">>> Say to " + param1 + ": " + param2);
+                BroadcastTask task = new BroadcastTask(param1, cmd.clientId + ": " + param2);
                 broadcasterPool.submitTask(task);
             } else {
-                System.out.println("(Server): You are not in room " + roomName + " Can't send message");
+                clientRegistry.sendDirectMessage(cmd.clientId, "[Server]: You are not in room " + param1 + " Can't send message");
             }
-
         } else if (command.equals("DM")) {
-            String receiver = param1;
-            String message = param2;
-
-            if (clientRegistry.hasClient(receiver)) {
-                String formatted = "[DM from " + clientId + "] " + message;
-                clientRegistry.sendDirectMessage(receiver, formatted);
+            if (clientRegistry.hasClient(param1)) {
+                clientRegistry.sendDirectMessage(cmd.clientId, ">>> Direct message to " + param1 + ": " + param2);
+                String formatted = "[DM]" + cmd.clientId + ": " + param2;
+                clientRegistry.sendDirectMessage(param1, formatted);
             } else {
-                System.out.println("(System): ไม่พบผู้รับชื่อ " + receiver);
+                clientRegistry.sendDirectMessage(cmd.clientId, "[System]: Receiver not found " + param1);
             }
-
-        } else if (command.equals("WHO")) { // WHO
-            if (roomRegistry.isMember(param1, clientId)) {
+        } else if (command.equals("WHO")) {
+            if (roomRegistry.isMember(param1, cmd.clientId)) {
                 Set<String> members = roomRegistry.getMembers(param1);
-                System.out.println("Members in " + param1 + ": " + members);
+                clientRegistry.sendDirectMessage(cmd.clientId, ">>> Members in " + param1 + ": " + members);
             } else {
-                System.out.println("(Server): You are not in room " + param1);
+                clientRegistry.sendDirectMessage(cmd.clientId, "[System]: You are not in room " + param1);
             }
-
-        } else if (command.equals("LEAVE")) { // LEAVE
-            roomRegistry.leaveRoom(param1, clientId);
-
-        } else if (command.equals("QUIT")) { // QUIT
-            System.out.println(">>> Exit the program");
-            System.exit(0);
-
+        } else if (command.equals("LEAVE")) {
+            clientRegistry.sendDirectMessage(cmd.clientId, ">>> Leave room " + param1);
+            roomRegistry.leaveRoom(param1, cmd.clientId);
+            broadcasterPool.submitTask(new BroadcastTask(param1, "[System]: " + cmd.clientId + " left the room."));
+        } else if (command.equals("QUIT")) {
+            clientRegistry.sendDirectMessage(cmd.clientId, ">>> Goodbye " + cmd.clientId);
+            clientRegistry.unregisterClient(cmd.clientId);
         } else {
-            System.out.println("Unknown command: " + command);
+            clientRegistry.sendDirectMessage(cmd.clientId, "[System]: Unknown command " + command);
         }
     }
 
-    public static void main(String[] args) {
-        Server_Os server = new Server_Os();
-        String cur_instruction;
+    // -------------------- ClientHandler --------------------
+    private class ClientHandler implements Runnable {
+        private final Socket socket;
+        private BufferedReader in;
+        private PrintWriter out;
+        private String clientId;
 
-        while (true) {
-            cur_instruction = server.Pre_client();
-            server.controlQueue.add(cur_instruction);
-            server.Router();
-            System.out.println();
+        public ClientHandler(Socket socket) {
+            this.socket = socket;
+        }
+
+        @Override
+        public void run() {
+            try {
+                in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+                out = new PrintWriter(socket.getOutputStream(), true);
+
+                String firstLine = in.readLine();
+                if (firstLine == null || !firstLine.startsWith("HELLO ")) {
+                    out.println("[System]: Invalid handshake. Closing connection.");
+                    socket.close();
+                    return;
+                }
+
+                clientId = firstLine.substring(6).trim();
+                clientRegistry.registerClient(clientId, out);
+                clientRegistry.sendDirectMessage(clientId, "[System]: Welcome " + clientId + "!");
+
+                System.out.println("[System] " + clientId + " connected.");
+                String input;
+                while ((input = in.readLine()) != null) {
+                    controlQueue.offer(new ClientCommand(clientId, input.trim()));
+                }
+
+            } catch (IOException e) {
+                System.out.println("[System] " + clientId + " disconnected.");
+            } finally {
+                if (clientId != null)
+                    clientRegistry.unregisterClient(clientId);
+                try {
+                    socket.close();
+                } catch (IOException ignored) {
+                }
+            }
         }
     }
-
 }

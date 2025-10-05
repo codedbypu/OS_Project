@@ -13,7 +13,7 @@ public class RoomRegistry {
         try {
             rooms.putIfAbsent(roomName, new HashSet<>()); // ถ้ายังไม่มีห้อง → สร้างห้องใหม่
             rooms.get(roomName).add(clientId); // เพิ่มสมาชิก
-            System.out.println("(Server): " + clientId + " joined " + roomName);
+            System.out.println("[Server]: " + clientId + " joined " + roomName);
         } finally {
             lock.writeLock().unlock();
         }
@@ -30,7 +30,7 @@ public class RoomRegistry {
                 // ถ้าห้องว่าง → ลบทิ้ง
                 if (rooms.get(roomName).isEmpty()) {
                     rooms.remove(roomName);
-                    System.out.println("(Server): " + "Room " + roomName + " is now empty -> deleted.");
+                    System.out.println("[Server]: " + "Room " + roomName + " is now empty -> deleted.");
                 }
             }
         } finally {
