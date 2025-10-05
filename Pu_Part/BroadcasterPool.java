@@ -5,7 +5,7 @@ public class BroadcasterPool {
     private final BlockingQueue<BroadcastTask> taskQueue = new LinkedBlockingQueue<>();
     private final ExecutorService pool;
 
-     public BroadcasterPool(int numThreads, RoomRegistry roomRegistry, ClientRegistry clientRegistry) {
+    public BroadcasterPool(int numThreads, RoomRegistry roomRegistry, ClientRegistry clientRegistry) {
         pool = Executors.newFixedThreadPool(numThreads);
         for (int i = 0; i < numThreads; i++) {
             pool.submit(new Broadcaster(taskQueue, roomRegistry, clientRegistry));
@@ -42,7 +42,7 @@ public class BroadcasterPool {
                         continue;
 
                     for (String member : members) {
-                        clientRegistry.sendDirectMessage(member, "["+ room +"]" + message);
+                        clientRegistry.sendDirectMessage(member, "[" + room + "]" + message);
                     }
                 }
             } catch (InterruptedException e) {

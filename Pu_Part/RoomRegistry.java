@@ -13,7 +13,7 @@ public class RoomRegistry {
         try {
             rooms.putIfAbsent(roomName, new HashSet<>()); // ถ้ายังไม่มีห้อง → สร้างห้องใหม่
             rooms.get(roomName).add(clientId); // เพิ่มสมาชิก
-            System.out.println("[Server]: " + clientId + " joined " + roomName);
+            System.out.println("[Server]: " + clientId + " joined " + roomName); 
         } finally {
             lock.writeLock().unlock();
         }
