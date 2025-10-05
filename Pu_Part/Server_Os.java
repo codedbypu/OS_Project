@@ -25,7 +25,7 @@ import java.util.Queue;
 public class Server_Os {
     private Queue<String> control_queue = new LinkedList<>();
     private RoomRegistry roomRegistry = new RoomRegistry();
-    private String clientId = "Alice";
+    private String clientId = "Bob";
 
     public String Pre_client() {
         Scanner sc = new Scanner(System.in);
