@@ -23,7 +23,7 @@ public class ClientRegistry {
         if (writer  != null) {
             writer.println(message);
         } else {
-            System.out.println("[System] ไม่พบผู้รับ: " + receiver);
+            System.out.println("[System] Not found receiver: " + receiver);
         }
     }
 }

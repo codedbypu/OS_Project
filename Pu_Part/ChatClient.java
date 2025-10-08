@@ -21,7 +21,7 @@ public class ChatClient {
             String name = scanner.nextLine().trim();
             out.println("HELLO " + name);
 
-            // Thread 1: รับข้อความจาก server -> ใส่ replyQueu
+            // Thread 1: รับข้อความจาก server -> ใส่ replyQueue+
             new Thread(() -> {
                 try {
                     String msg;
