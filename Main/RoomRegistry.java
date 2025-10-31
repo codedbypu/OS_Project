@@ -3,29 +3,29 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class RoomRegistry {
     // Map<ชื่อห้อง, รายชื่อสมาชิกในห้อง>
-    private final Map<String, Set<String>> rooms = new HashMap<>();
+    private final Map<String, Set<User>> rooms = new HashMap<>();
     // ตัวล็อกอ่าน–เขียน เพื่อกันหลาย thread
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     // ----------------------------- เข้าห้อง -----------------------------
-    public void joinRoom(String roomName, String clientId) {
+    public void joinRoom(String roomName, User user) {
         lock.writeLock().lock(); // เขียนข้อมูล ต้องล็อกแบบ write
         try {
             rooms.putIfAbsent(roomName, new HashSet<>()); // ถ้ายังไม่มีห้อง → สร้างห้องใหม่
-            rooms.get(roomName).add(clientId); // เพิ่มสมาชิก
-            System.out.println("[Server]: " + clientId + " joined " + roomName); 
+            rooms.get(roomName).add(user); // เพิ่มสมาชิก
+            System.out.println("[Server]: " + user.getClientId() + " joined " + roomName);
         } finally {
             lock.writeLock().unlock();
         }
     }
 
     // ----------------------------- ออกจากห้อง -----------------------------
-    public void leaveRoom(String roomName, String clientId) {
+    public void leaveRoom(String roomName, User user) {
         lock.writeLock().lock();
         try {
             if (rooms.containsKey(roomName)) {
-                rooms.get(roomName).remove(clientId);
-                System.out.println(clientId + " left " + roomName);
+                rooms.get(roomName).remove(user);
+                System.out.println(user.getClientId() + " left " + roomName);
 
                 // ถ้าห้องว่าง → ลบทิ้ง
                 if (rooms.get(roomName).isEmpty()) {
@@ -39,7 +39,7 @@ public class RoomRegistry {
     }
 
     // ----------------------------- ดูสมาชิกในห้อง -----------------------------
-    public Set<String> getMembers(String roomName) {
+    public Set<User> getMembers(String roomName) {
         lock.readLock().lock();
         try {
             return new HashSet<>(rooms.getOrDefault(roomName, Collections.emptySet()));
@@ -48,26 +48,36 @@ public class RoomRegistry {
         }
     }
 
-    // ----------------------------- เช็กสมาชิกใน RoomRegistry -----------------------------
-    public boolean isMember(String roomName, String clientId) {
+    // ------------------------- เช็กสมาชิกใน RoomRegistry ----------------------
+    public boolean isMember(String roomName, User user) {
         lock.readLock().lock();
         try {
-            return rooms.containsKey(roomName) && rooms.get(roomName).contains(clientId);
+            return rooms.containsKey(roomName) && rooms.get(roomName).contains(user);
         } finally {
             lock.readLock().unlock();
         }
     }
 
-    // ----------------------------- debug ดูข้อมูลทั้งหมด -----------------------------
-    public void printAllRooms() {
-        lock.readLock().lock();
+    // ----------------------------- ลบ user ออกจากทุกห้อง ----------------
+
+    public void removeUserFromAllRooms(User user, BroadcasterPool broadcasterPool) {
+        lock.writeLock().lock();
         try {
-            System.out.println("===== Current Rooms =====");
-            for (String room : rooms.keySet()) {
-                System.out.println(room + " -> " + rooms.get(room));
+            Iterator<Map.Entry<String, Set<User>>> it = rooms.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<String, Set<User>> entry = it.next();
+                if (entry.getValue().remove(user)) {
+                    System.out.println("[Server]: " + user.getClientId() + " removed from " + entry.getKey());
+                    broadcasterPool.submitTask(
+                            new BroadcastTask(entry.getKey(), ": " + user.getClientId() + " left the room."));
+                    if (entry.getValue().isEmpty()) {
+                        it.remove();
+                        System.out.println("[Server]: Room " + entry.getKey() + " deleted.");
+                    }
+                }
             }
         } finally {
-            lock.readLock().unlock();
+            lock.writeLock().unlock();
         }
     }
 }
