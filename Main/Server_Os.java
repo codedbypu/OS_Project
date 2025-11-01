@@ -21,26 +21,18 @@ class ClientCommand {
 }
 
 public class Server_Os {
-    private final int MAX_CONTROLQUEUE_SIZE = 5000;
+    private final int MAX_CONTROLQUEUE_SIZE = 1000;
     private final ServerConnection serverConnection = new ServerConnection(); // ใช้ดึงการตั้งค่าเซิร์ฟเวอร์
-    private final RoomRegistry roomRegistry = new RoomRegistry(); // ใช้เก็บห้องแชททั้งหมด
-    private final ClientRegistry clientRegistry = new ClientRegistry(); // ใช้เก็บ client ที่เชื่อมต่อเข้ามา
-    private static BroadcasterPool broadcasterPool; // ใช้กระจายข้อความไปยังสมาชิกในห้องแชทต่างๆ ทำเป็น static
-                                                    // เพื่อให้เข้าถึงได้จากที่อื่น(ใช้ในการทดสอบ)
+    private static final RoomRegistry roomRegistry = new RoomRegistry(); // ใช้เก็บห้องแชททั้งหมด
+    private static final ClientRegistry clientRegistry = new ClientRegistry(); // ใช้เก็บ client ที่เชื่อมต่อเข้ามา
+    // ใช้กระจายข้อความไปยังสมาชิกในห้องแชทต่างๆ ทำเป็น static เพื่อให้เข้าถึงได้จากที่อื่น(ใช้ในการทดสอบ)
+    private static final BroadcasterPool broadcasterPool = new BroadcasterPool(3, roomRegistry, clientRegistry); 
     private final BlockingQueue<ClientCommand> controlQueue = new LinkedBlockingQueue<>(MAX_CONTROLQUEUE_SIZE);
-    private final BlockingQueue<ClientCommand> heartbeatQueue = new LinkedBlockingQueue<>(); // คิวเก็บคำสั่ง ping จาก
-                                                                                             // client
+    // คิวเก็บคำสั่ง ping จาก client
+    private final BlockingQueue<ClientCommand> heartbeatQueue = new LinkedBlockingQueue<>(); 
 
     public static void main(String[] args) {
-        initServer();
         new Server_Os().startServer();
-    }
-
-    // ---------------- Server Initialization ----------------
-    public static void initServer() {
-        RoomRegistry roomRegistry = new RoomRegistry();
-        ClientRegistry clientRegistry = new ClientRegistry();
-        broadcasterPool = new BroadcasterPool(3, roomRegistry, clientRegistry);
     }
 
     public void startServer() {
@@ -137,7 +129,7 @@ public class Server_Os {
         } else if (command.equals("SAY")) {
             if (roomRegistry.isMember(param1, cmd.user)) {
                 clientRegistry.sendDirectMessage(cmd.user, ">>> Say to " + param1 + ": " + param2);
-                BroadcastTask task = new BroadcastTask(param1, cmd.user + ": " + param2);
+                BroadcastTask task = new BroadcastTask(param1, cmd.user.getClientId() + ": " + param2);
                 broadcasterPool.submitTask(task);
             } else {
                 String text = "[Server]: You are not in room " + param1 + " Can't send message";
@@ -202,10 +194,15 @@ public class Server_Os {
                                 + originalMsg);
             }
         } else if (command.equals("SET_THREADS")) {
+            if (!cmd.user.getClientId().equals("Admin")) {
+                clientRegistry.sendDirectMessage(cmd.user, "[Server]: Permission denied.");
+                return;
+            }
             try {
                 int threads = Integer.parseInt(param1);
                 System.out.println("[System]: Broadcaster threads set to " + threads);
                 broadcasterPool.setThreadCount(threads);
+                System.out.println("[Server] broadcasterPool = " + System.identityHashCode(broadcasterPool));
             } catch (NumberFormatException e) {
                 System.out.println("[System]: Invalid thread count: " + param1);
             }
