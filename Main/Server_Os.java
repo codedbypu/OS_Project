@@ -25,9 +25,11 @@ public class Server_Os {
     private final ServerConnection serverConnection = new ServerConnection(); // ใช้ดึงการตั้งค่าเซิร์ฟเวอร์
     private final RoomRegistry roomRegistry = new RoomRegistry(); // ใช้เก็บห้องแชททั้งหมด
     private final ClientRegistry clientRegistry = new ClientRegistry(); // ใช้เก็บ client ที่เชื่อมต่อเข้ามา
-    public static BroadcasterPool broadcasterPool; // ใช้กระจายข้อความไปยังสมาชิกในห้องแชทต่างๆ ทำเป็น static เพื่อให้เข้าถึงได้จากที่อื่น(ใช้ในการทดสอบ)
+    private static BroadcasterPool broadcasterPool; // ใช้กระจายข้อความไปยังสมาชิกในห้องแชทต่างๆ ทำเป็น static
+                                                    // เพื่อให้เข้าถึงได้จากที่อื่น(ใช้ในการทดสอบ)
     private final BlockingQueue<ClientCommand> controlQueue = new LinkedBlockingQueue<>(MAX_CONTROLQUEUE_SIZE);
-    private final BlockingQueue<ClientCommand> heartbeatQueue = new LinkedBlockingQueue<>(); // คิวเก็บคำสั่ง ping จาก client
+    private final BlockingQueue<ClientCommand> heartbeatQueue = new LinkedBlockingQueue<>(); // คิวเก็บคำสั่ง ping จาก
+                                                                                             // client
 
     public static void main(String[] args) {
         initServer();
@@ -198,6 +200,14 @@ public class Server_Os {
                 System.out
                         .println("[System]: Cannot identify sender in message. Overload notification failed.  Message: "
                                 + originalMsg);
+            }
+        } else if (command.equals("SET_THREADS")) {
+            try {
+                int threads = Integer.parseInt(param1);
+                System.out.println("[System]: Broadcaster threads set to " + threads);
+                broadcasterPool.setThreadCount(threads);
+            } catch (NumberFormatException e) {
+                System.out.println("[System]: Invalid thread count: " + param1);
             }
         } else {
             clientRegistry.sendDirectMessage(cmd.user, "[System]: Unknown command " + command);

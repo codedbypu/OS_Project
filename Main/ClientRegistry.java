@@ -4,26 +4,26 @@ import java.util.concurrent.*;
 
 public class ClientRegistry {
     // เก็บ reply queue ของแต่ละ client
-    private final List<User> clientWriters = new CopyOnWriteArrayList<>();
+    private final List<User> connectedClients = new CopyOnWriteArrayList<>(); // ใช้ CopyOnWriteArrayList เพื่อความปลอดภัยในการเข้าถึงแบบหลาย threads
 
     // เพิ่ม client เข้าสู่ระบบ
     public void registerClient(User user) {
-        clientWriters.add(user);
+        connectedClients.add(user);
     }
 
     // ลบ client ออกจากระบบ
     public void unregisterClient(User user) {
-        clientWriters.remove(user);
+        connectedClients.remove(user);
     }
 
     // ดึงรายชื่อ client ทั้งหมด
     public List<User> getAllUsers() {
-        return clientWriters;
+        return connectedClients;
     }
 
-    // เช็คว่ามี Client คนนี้อยู่ในระบบหรือไม่ โดยใช้ clientId
+    // เช็คว่ามี Client คนนี้อยู่ในระบบหรือไม่ (โดยใช้ clientId)
     public synchronized boolean hasClientId(String clientId) {
-        for (User user : clientWriters) {
+        for (User user : connectedClients) {
             if (user.getClientId().equals(clientId)) {
                 return true;
             }
@@ -33,7 +33,7 @@ public class ClientRegistry {
 
     // ดึง User object โดยใช้ clientId
     public User getUserById(String id) {
-        for (User u : clientWriters) {
+        for (User u : connectedClients) {
             if (u.getClientId().equals(id))
                 return u;
         }
@@ -42,11 +42,11 @@ public class ClientRegistry {
 
     // ส่งข้อความตรงไปยัง client ที่ระบุ
     public void sendDirectMessage(User user, String message) {
-        PrintWriter writer = user.getClientPrintWriter();
-        if (writer != null) {
-            writer.println(message);
+        PrintWriter userOutput = user.getClientPrintWriter(); // ดึง PrintWriter ของ client คนที่จะส่งข้อความไปหา
+        if (userOutput != null) {
+            userOutput.println(message);
         } else {
-            System.out.println("[System] Not found receiver: " + user.getClientId());
+            System.out.println("[System]: Not found receiver: " + user.getClientId());
         }
     }
 }
