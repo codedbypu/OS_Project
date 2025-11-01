@@ -2,12 +2,13 @@ import java.util.Set;
 import java.util.concurrent.*;
 
 public class BroadcasterPool {
-    private BlockingQueue<BroadcastTask> taskQueue = new LinkedBlockingQueue<>();
+    private final BlockingQueue<BroadcastTask> taskQueue = new LinkedBlockingQueue<>(); // ใช้เก็บงานกระจายข้อความ
+    private final ClientRegistry clientRegistry;
+    private final RoomRegistry roomRegistry;
     private ExecutorService pool;
     private int numThreads;
-    private final RoomRegistry roomRegistry;
-    private final ClientRegistry clientRegistry;
 
+    // ---------------- Initialization ----------------
     public BroadcasterPool(int numThreads, RoomRegistry roomRegistry, ClientRegistry clientRegistry) {
         this.numThreads = numThreads;
         this.roomRegistry = roomRegistry;
@@ -22,51 +23,47 @@ public class BroadcasterPool {
         }
     }
 
-    // --- ฟังก์ชันสำหรับปรับจำนวน threads ---
+    // ---------------- ฟังก์ชันปรับจำนวน threads ----------------
     public void setThreadCount(int threads) {
         if (threads != this.numThreads) {
             pool.shutdownNow(); // ปิด pool เก่า
-            this.numThreads = threads;
+            this.numThreads = threads; // อัปเดตจำนวน threads
             startPool(threads); // สร้าง pool ใหม่
-            System.out.println("[BroadcasterPool] Thread count set to " + threads);
+            System.out.println("[BroadcasterPool]: Thread count set to " + threads);
         }
     }
 
-    // เพิ่มงานใหม่เข้า queue
+    // ---------------- ฟังก์ชันส่งงานกระจายข้อความ ----------------
     public void submitTask(BroadcastTask task) {
         taskQueue.offer(task);
     }
 
     // --------------------------- Broadcaster class ---------------------------
     public class Broadcaster implements Runnable {
-        private BlockingQueue<BroadcastTask> taskQueue;
-        private RoomRegistry roomRegistry;
-        private ClientRegistry clientRegistry;
-        
+        private final BlockingQueue<BroadcastTask> taskQueue;
+        private final RoomRegistry roomRegistry;
+        private final ClientRegistry clientRegistry;
+
         public Broadcaster(BlockingQueue<BroadcastTask> taskQueue, RoomRegistry roomRegistry,
                 ClientRegistry clientRegistry) {
-            this.taskQueue = taskQueue;
-            this.roomRegistry = roomRegistry;
-            this.clientRegistry = clientRegistry;
+            this.taskQueue = taskQueue; // ดึงมาจาก pool เพื่อดูทำงานที่ต้องทำ
+            this.roomRegistry = roomRegistry; // ดึงมาเพื่อดูสมาชิกในห้อง
+            this.clientRegistry = clientRegistry; // ดึงมาเพื่อส่งข้อความไปยังสมาชิก
         }
 
         @Override
         public void run() {
             try {
                 while (true) {
-                    BroadcastTask task = taskQueue.take(); // ดึงงานออกมาทำ
+                    BroadcastTask task = taskQueue.take(); // ดึงงานจาก taskQueue ออกมาทำ
                     String room = task.getRoomName();
                     String message = task.getMessage();
 
-                    Set<User> members = roomRegistry.getMembers(room);
+                    Set<User> members = roomRegistry.getMembers(room); // ดึงสมาชิกในห้องนั้นๆ
                     if (members == null || members.isEmpty())
                         continue;
-
                     for (User member : members) {
-                        clientRegistry.sendDirectMessage(member, "[" + room + "]" + message);
-
-                        long latency = System.currentTimeMillis() - task.getEnqueueTime();
-                        LatencyTracker.recordLatency(latency);
+                        clientRegistry.sendDirectMessage(member, "[" + room + "]" + message); // ส่งข้อความไปยังสมาชิกแต่ละคน
                     }
                 }
             } catch (InterruptedException e) {

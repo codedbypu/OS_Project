@@ -1,6 +1,6 @@
 public class BroadcastTask {
-    private String roomName;
-    private String message;
+    private final String roomName;
+    private final String message;
     private final long enqueueTime;
 
     public BroadcastTask(String roomName, String message) {

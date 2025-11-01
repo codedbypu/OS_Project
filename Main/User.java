@@ -1,8 +1,8 @@
 import java.io.PrintWriter;
 
 public class User {
-    private String clientId;
-    private PrintWriter PrintWriter;
+    private final String clientId;
+    private final PrintWriter PrintWriter;
 
     User(String clientId, PrintWriter PrintWriter) {
         this.clientId = clientId;

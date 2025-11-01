@@ -22,63 +22,49 @@ class ClientCommand {
 
 public class Server_Os {
     private final int MAX_CONTROLQUEUE_SIZE = 5000;
-    private ServerConnection Cn = new ServerConnection();
+    private final ServerConnection serverConnection = new ServerConnection(); // ใช้ดึงการตั้งค่าเซิร์ฟเวอร์
+    private final RoomRegistry roomRegistry = new RoomRegistry(); // ใช้เก็บห้องแชททั้งหมด
+    private final ClientRegistry clientRegistry = new ClientRegistry(); // ใช้เก็บ client ที่เชื่อมต่อเข้ามา
+    public static BroadcasterPool broadcasterPool; // ใช้กระจายข้อความไปยังสมาชิกในห้องแชทต่างๆ ทำเป็น static เพื่อให้เข้าถึงได้จากที่อื่น(ใช้ในการทดสอบ)
     private final BlockingQueue<ClientCommand> controlQueue = new LinkedBlockingQueue<>(MAX_CONTROLQUEUE_SIZE);
-    private final BlockingQueue<ClientCommand> heartbeatQueue = new LinkedBlockingQueue<>();
-    private final RoomRegistry roomRegistry = new RoomRegistry();
-    private final ClientRegistry clientRegistry = new ClientRegistry();
-    public static BroadcasterPool broadcasterPool;
-
-    public static void initServer() {
-        RoomRegistry roomRegistry = new RoomRegistry();
-        ClientRegistry clientRegistry = new ClientRegistry();
-        broadcasterPool = new BroadcasterPool(3, roomRegistry, clientRegistry);
-    }
+    private final BlockingQueue<ClientCommand> heartbeatQueue = new LinkedBlockingQueue<>(); // คิวเก็บคำสั่ง ping จาก client
 
     public static void main(String[] args) {
         initServer();
         new Server_Os().startServer();
     }
 
+    // ---------------- Server Initialization ----------------
+    public static void initServer() {
+        RoomRegistry roomRegistry = new RoomRegistry();
+        ClientRegistry clientRegistry = new ClientRegistry();
+        broadcasterPool = new BroadcasterPool(3, roomRegistry, clientRegistry);
+    }
+
     public void startServer() {
         new Thread(this::routerLoop, "RouterThread").start();
         new Thread(this::heartbeatWorker, "HeartbeatWorker").start();
 
-        try (ServerSocket serverSocket = new ServerSocket(Cn.getPort())) {
-            System.out.println("[System] Server started on port " + Cn.getPort());
+        try (ServerSocket serverSocket = new ServerSocket(serverConnection.getPort())) {
+            System.out.println("[System]: Server started on port " + serverConnection.getPort());
             while (true) {
                 Socket socket = serverSocket.accept();
                 new Thread(new ClientHandler(socket), "ClientHandler").start();
-                System.out.println("[System] New client connected: " + socket.getInetAddress());
+                System.out.println("[System]: New client connected: " + socket.getInetAddress().getHostName() + " ("
+                        + socket.getLocalSocketAddress() + ")");
             }
         } catch (IOException e) {
-            System.out.println("[System] Server error!");
+            System.out.println("[System]: Server error!");
             e.printStackTrace();
         }
     }
 
     // ---------------- Router Loop ----------------
     private void routerLoop() {
-        long lastTime = System.currentTimeMillis();
-        int processedCount = 0;
-
         while (true) {
             try {
                 ClientCommand cmd = controlQueue.take();
-                long enqueueTime = System.currentTimeMillis(); // สำหรับ latency
                 processCommand(cmd);
-                processedCount++;
-
-                long latency = System.currentTimeMillis() - enqueueTime;
-                LatencyTracker.recordLatency(latency); // เก็บ latency
-
-                long now = System.currentTimeMillis();
-                if (now - lastTime >= 1000) { // ทุก 1 วินาที
-                    System.out.println("[Throughput] Messages/sec: " + processedCount);
-                    processedCount = 0;
-                    lastTime = now;
-                }
-
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;
@@ -90,35 +76,35 @@ public class Server_Os {
     private final Map<String, Long> heartbeatMap = new ConcurrentHashMap<>(); // <clientId, lastPingTime>
 
     private void heartbeatWorker() {
-        final long CHECK_INTERVAL = 5000; // 5 วิ เช็คครั้ง
-        final long TIMEOUT = 30000; // 30 วิ หมดอายุ
+        final long CHECK_INTERVAL = 5000; // ตั้งค่าไว้ที่ 5 วิ จะเช็คครั้ง
+        final long TIMEOUT = 30000; // ตั้งค่าไว้ที่ 30 วิ จะตัดการเชื่อมต่อถ้าไม่มี ping
 
         while (true) {
             try {
-                // รอ ping จาก client (สูงสุด 5 วิ)
-                ClientCommand cmd = heartbeatQueue.poll(CHECK_INTERVAL, java.util.concurrent.TimeUnit.MILLISECONDS);
+                // V รอคำสั่งping ทุก5วิ จะไปดูในคิว V
+                ClientCommand command = heartbeatQueue.poll(CHECK_INTERVAL, java.util.concurrent.TimeUnit.MILLISECONDS);
                 long now = System.currentTimeMillis();
 
-                if (cmd != null) {
-                    heartbeatMap.put(cmd.user.getClientId(), now);
+                if (command != null) {
+                    heartbeatMap.put(command.user.getClientId(), now);
                 }
 
                 // ตรวจ timeout
                 for (var entry : heartbeatMap.entrySet()) {
-                    String id = entry.getKey();
+                    String clientId = entry.getKey();
                     long lastPing = entry.getValue();
 
                     if (now - lastPing > TIMEOUT) {
-                        System.out.println("[Heartbeat] Client " + id + " timed out (zombie). Removing...");
+                        System.out.println("[Heartbeat]: Client " + clientId + " timed out (zombie). Removing...");
 
-                        User u = clientRegistry.getUserById(id);
-                        if (u != null) {
-                            clientRegistry.unregisterClient(u);
-                            roomRegistry.removeUserFromAllRooms(u, broadcasterPool);
+                        User user = clientRegistry.getUserById(clientId);
+                        if (user != null) {
+                            clientRegistry.unregisterClient(user);
+                            roomRegistry.removeUserFromAllRooms(user, broadcasterPool);
                         }
 
-                        heartbeatMap.remove(id);
-                        System.out.println("[Heartbeat] Client " + id + " removed.");
+                        heartbeatMap.remove(clientId);
+                        System.out.println("[Heartbeat]: Client " + clientId + " removed.");
                     }
                 }
             } catch (InterruptedException e) {
@@ -152,41 +138,45 @@ public class Server_Os {
                 BroadcastTask task = new BroadcastTask(param1, cmd.user + ": " + param2);
                 broadcasterPool.submitTask(task);
             } else {
-                clientRegistry.sendDirectMessage(cmd.user,
-                        "[Server]: You are not in room " + param1 + " Can't send message");
+                String text = "[Server]: You are not in room " + param1 + " Can't send message";
+                clientRegistry.sendDirectMessage(cmd.user, text);
             }
         } else if (command.equals("DM")) {
             if (clientRegistry.hasClientId(param1)) {
                 clientRegistry.sendDirectMessage(cmd.user, ">>> Direct message to " + param1 + ": " + param2);
-                String formatted = "[DM]" + cmd.user.getClientId() + ": " + param2;
-                clientRegistry.sendDirectMessage(clientRegistry.getUserById(param1), formatted);
+                String text = "[DM]" + cmd.user.getClientId() + ": " + param2;
+                clientRegistry.sendDirectMessage(clientRegistry.getUserById(param1), text);
             } else {
-                clientRegistry.sendDirectMessage(cmd.user, "[System]: Receiver not found " + param1);
+                clientRegistry.sendDirectMessage(cmd.user, "[Server]: Receiver not found " + param1);
             }
         } else if (command.equals("WHO")) {
             if (roomRegistry.isMember(param1, cmd.user)) {
                 Set<User> members = roomRegistry.getMembers(param1);
-                Set<String> AllClientId = ConcurrentHashMap.newKeySet();
+                Set<String> allClientId = ConcurrentHashMap.newKeySet();
                 for (User u : members) {
-                    AllClientId.add(u.getClientId());
+                    allClientId.add(u.getClientId());
                 }
-
-                clientRegistry.sendDirectMessage(cmd.user, ">>> Members in " + param1 + ": " + AllClientId);
+                clientRegistry.sendDirectMessage(cmd.user, ">>> Members in " + param1 + ": " + allClientId);
             } else {
-                clientRegistry.sendDirectMessage(cmd.user, "[System]: You are not in room " + param1);
+                clientRegistry.sendDirectMessage(cmd.user, "[Server]: You are not in room " + param1);
             }
         } else if (command.equals("LEAVE")) {
-            clientRegistry.sendDirectMessage(cmd.user, ">>> Leave room " + param1);
-            roomRegistry.leaveRoom(param1, cmd.user);
-            broadcasterPool
-                    .submitTask(new BroadcastTask(param1, ": " + cmd.user.getClientId() + " left the room."));
+            if (roomRegistry.isMember(param1, cmd.user)) {
+                clientRegistry.sendDirectMessage(cmd.user, ">>> Leave room " + param1);
+                roomRegistry.leaveRoom(param1, cmd.user);
+                String text = ": " + cmd.user.getClientId() + " left the room.";
+                broadcasterPool.submitTask(new BroadcastTask(param1, text));
+            } else {
+                clientRegistry.sendDirectMessage(cmd.user, "[Server]: You are not in room " + param1);
+            }
         } else if (command.equals("QUIT")) {
             clientRegistry.sendDirectMessage(cmd.user, ">>> Goodbye " + cmd.user.getClientId());
             roomRegistry.removeUserFromAllRooms(cmd.user, broadcasterPool);
             clientRegistry.unregisterClient(cmd.user);
             heartbeatMap.remove(cmd.user.getClientId());
-        } else if (command.equals("CLIENT_OVERLOADED")) {
-            String originalMsg = cmd.command.substring("CLIENT_OVERLOADED".length()).trim();
+
+        } else if (command.equals("CLIENT_OVERLOADED")) { // คำสั่งทำงานเมื่อ client แจ้งมาว่าตัวเอง overload
+            String originalMsg = cmd.command.substring("CLIENT_OVERLOADED".length()).trim(); // ดึงข้อความต้นฉบับ
             String senderName = null;
 
             // พยายามดึงชื่อผู้ส่งจากข้อความ เช่น [DM]Alice: หรือ [#room]Bob:
@@ -198,13 +188,17 @@ public class Server_Os {
 
             if (senderName != null && clientRegistry.hasClientId(senderName)) {
                 User sender = clientRegistry.getUserById(senderName);
-                clientRegistry.sendDirectMessage(sender,
-                        "[System]: Your message could not be delivered (recipient overloaded). Please resend later.");
-                System.out.println("[System]: Notified " + senderName + " about delivery failure.");
+                String text = "[Server]: " + cmd.user.getClientId()
+                        + " overloaded. Message failed to deliver. Try later.";
+                clientRegistry.sendDirectMessage(sender, text);
+                String textNotified = "[System]: Notified " + senderName + " about overload from "
+                        + cmd.user.getClientId();
+                System.out.println(textNotified);
             } else {
-                System.out.println("[System]: Could not parse sender from overloaded message: " + originalMsg);
+                System.out
+                        .println("[System]: Cannot identify sender in message. Overload notification failed.  Message: "
+                                + originalMsg);
             }
-
         } else {
             clientRegistry.sendDirectMessage(cmd.user, "[System]: Unknown command " + command);
         }
@@ -221,29 +215,28 @@ public class Server_Os {
 
         @Override
         public void run() {
-            try (
-                    BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+            try (BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                     PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
+
                 String firstLine = in.readLine();
-                if (firstLine == null || !firstLine.startsWith("HELLO ")) {
-                    out.println("[System]: Invalid handshake. Closing connection.");
+                if (firstLine == null || !firstLine.startsWith("HELLO ")) { // เกิดถ้าไม่ได้ส่ง HELLO มา
+                    out.println("[Server]: Invalid handshake. Closing connection.");
                     socket.close();
                     return;
                 }
 
-                String clientId = firstLine.substring(6).trim();
-
+                String clientId = firstLine.substring(6).trim(); // ดึงชื่อที่ส่งมา(ตัดคำว่า HELLO ออก)
                 if (clientRegistry.hasClientId(clientId)) {
-                    out.println("[System]: Error - Name already in use. Please try another name.");
+                    out.println("[Server]: Error - Name already taken. Choose another.");
                     socket.close();
                     return;
                 }
 
                 user = new User(clientId, out);
                 clientRegistry.registerClient(user);
-                clientRegistry.sendDirectMessage(user, "[System]: Welcome " + user.getClientId() + "!");
+                clientRegistry.sendDirectMessage(user, "[Server]: Welcome " + user.getClientId() + "!");
 
-                System.out.println("[System] " + user.getClientId() + " connected.");
+                System.out.println("[System]: " + user.getClientId() + " connected.");
 
                 String input;
                 while ((input = in.readLine()) != null) {
@@ -252,15 +245,14 @@ public class Server_Os {
                     } else {
                         if (!controlQueue.offer(new ClientCommand(user, input.trim()))) {
                             System.out.println(
-                                    "[System] Control queue full! Dropping command from " + user.getClientId());
-                            clientRegistry.sendDirectMessage(user, "[System]: Server busy. Your command was dropped.");
+                                    "[System]: Control queue full! Dropping command from " + user.getClientId());
+                            clientRegistry.sendDirectMessage(user, "[Server]: Server busy. Your command was dropped.");
                         }
-                        // controlQueue.offer(new ClientCommand(user, input.trim()));
                     }
                 }
 
             } catch (IOException e) {
-                System.out.println("[System] " + (user != null ? user.getClientId() : "unknown") + " disconnected.");
+                System.out.println("[System]: " + (user != null ? user.getClientId() : "unknown") + " disconnected.");
             } finally {
                 if (user != null) {
                     clientRegistry.unregisterClient(user);
