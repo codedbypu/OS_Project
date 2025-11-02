@@ -5,7 +5,6 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class ChatClientTester {
-
     // ---------------- CONFIG ----------------
     private static final ServerConnection serverConnection = new ServerConnection();
     private static final String ROOM = "#os-lab";
