@@ -13,7 +13,7 @@ public class ChatClientTester {
     private static final int NUM_CLIENTS = 2; // จำนวน client ที่จะจำลอง
     private static final int MESSAGES_PER_CLIENT = 2000; // จำนวนข้อความที่แต่ละ client จะส่ง
     private static final int[] THREAD_COUNTS = {1, 2, 4, 8, 12, 16, 24}; // จำนวน threads ของ Broadcaster ที่จะทดสอบ
-    private static final int ROUND_TEST_PER_THREAD = 4; // จำนวนรอบทดสอบต่อ thread setting
+    private static final int ROUND_TEST_PER_THREAD = 1; // จำนวนรอบทดสอบต่อ thread setting
 
     private static final int SLEEPTIME_MS = 1000; // เวลารอหลังเปลี่ยนค่า threads
 
