@@ -4,9 +4,7 @@ import java.util.concurrent.*;
 
 public class ClientRegistry {
     // เก็บ reply queue ของแต่ละ client
-    private final List<User> connectedClients = new CopyOnWriteArrayList<>(); // ใช้ CopyOnWriteArrayList
-                                                                              // เพื่อความปลอดภัยในการเข้าถึงแบบหลาย
-                                                                              // threads
+    private final List<User> connectedClients = new CopyOnWriteArrayList<>();
 
     // เพิ่ม client เข้าสู่ระบบ
     public void registerClient(User user) {
