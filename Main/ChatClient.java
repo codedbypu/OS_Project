@@ -5,7 +5,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class ChatClient {
-    private final int MAX_REPLYQUEUE_SIZE = 5000;
+    private final int MAX_REPLYQUEUE_SIZE = 1000;
     private final ServerConnection serverConnection = new ServerConnection();
 
     public static void main(String[] args) {
@@ -127,8 +127,8 @@ public class ChatClient {
                         System.out.print("[Input] Instruction: ");
                         String input = scanner.nextLine().trim();
 
-                        String[] parts = input.split(" ", 4);
-                        if (input.isEmpty() || parts.length > 3) {
+                        String[] parts = input.split(" ", 3);
+                        if (input.isEmpty()) {
                             System.out.println("[Client]: Command : ERROR");
                             continue;
                         }
@@ -157,8 +157,7 @@ public class ChatClient {
 
                         // ตรวจสอบ DM ต้องมีชื่อและข้อความ
                         if (command.equals("DM")) {
-                            String[] dmParts = input.split(" ", 3);
-                            if (dmParts.length < 3) {
+                            if (parts.length < 3) {
                                 System.out.println("[System]: Usage: DM <receiver_name> <message>");
                                 continue;
                             }

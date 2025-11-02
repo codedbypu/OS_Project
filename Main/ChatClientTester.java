@@ -1,149 +1,251 @@
 import java.io.*;
 import java.net.Socket;
+import java.net.SocketTimeoutException;
 import java.util.*;
 import java.util.concurrent.*;
 
 public class ChatClientTester {
-    // การตั้งค่า server connection และห้องแชท
+
+    // ---------------- CONFIG ----------------
     private static final ServerConnection serverConnection = new ServerConnection();
     private static final String ROOM = "#os-lab";
 
-    // จำนวน clients และข้อความต่อ client
-    private static final int NUM_CLIENTS = 1;
-    private static final int MESSAGES_PER_CLIENT = 10;
+    private static final int NUM_CLIENTS = 2; // จำนวน client ที่จะจำลอง
+    private static final int MESSAGES_PER_CLIENT = 2000; // จำนวนข้อความที่แต่ละ client จะส่ง
+    private static final int[] THREAD_COUNTS = {1, 2, 4, 8, 12, 16, 24}; // จำนวน threads ของ Broadcaster ที่จะทดสอบ
+    private static final int ROUND_TEST_PER_THREAD = 4; // จำนวนรอบทดสอบต่อ thread setting
 
-    // จำนวน threads ที่จะใช้ทดสอบ และเวลารอหลังเปลี่ยนแปลง
-    private static final int[] THREAD_COUNTS = {1};
-    private static final int SLEEPTIME_MS = 1000;
+    private static final int SLEEPTIME_MS = 1000; // เวลารอหลังเปลี่ยนค่า threads
+
+    private static final int JOIN_ACK_TIMEOUT_MS = 5000; // timeout ตอนรอ join room
+    private static final int MESSAGE_READ_TIMEOUT_MS = 2000; // timeout รอ message broadcast กลับ ถ้าเกินจะข้ามไป
+    // -----------------------------------------
 
     public static void main(String[] args) throws Exception {
-        System.out.println("=== ChatClientTester started ===");
+        System.out.println("====== ChatClientTester started ======");
         System.out.println("Connecting to " + serverConnection.getAddress() + ":" + serverConnection.getPort());
 
         List<TestResult> results = new ArrayList<>();
 
+        // ทดสอบแต่ละจำนวน thread ของ Broadcaster
         for (int threads : THREAD_COUNTS) {
-            System.out.println("\n===============================");
+            System.out.println("\n======================================");
             System.out.println(">>> Testing Broadcaster Threads = " + threads);
-            System.out.println("===============================");
+            System.out.println("======================================");
 
-            // 🔹 สั่ง server ให้เปลี่ยนจำนวน thread ผ่าน client พิเศษ
             sendThreadChangeCommand(threads);
-            Thread.sleep(SLEEPTIME_MS); // รอให้ server ปรับ pool เสร็จก่อน
+            Thread.sleep(SLEEPTIME_MS);
 
-            // 🔹 เริ่มการทดสอบ
-            TestResult r = runTestRound(threads);
-            results.add(r);
+            // ทดสอบหลายรอบต่อค่า thread เดียว
+            for (int round = 1; round <= ROUND_TEST_PER_THREAD; round++) {
+                TestResult r = runTestRound(threads); // รันการทดสอบ
+                results.add(r); // เก็บผลลัพธ์หนึ่งรอบ
+            }
         }
 
-        // 🔹 แสดงตารางสรุปผลเปรียบเทียบ
-        System.err.println("\nClient number: " + NUM_CLIENTS + ", Messages per client: " + MESSAGES_PER_CLIENT);
-        System.out.println("====== PERFORMANCE SUMMARY =======");
-        System.out.printf("%-10s %-15s %-20s %-15s%n", "Threads", "Total Time (s)", "Avg Latency (ms/msg)",
-                "Throughput (msg/s)");
+        // ---------------- SUMMARY ----------------
+        System.out.println("\nClient number: " + NUM_CLIENTS);
+        System.out.println("Messages per client: " + MESSAGES_PER_CLIENT);
+        System.out.println("======== PERFORMANCE SUMMARY =========");
+        System.out.printf("%-10s %-15s %-20s %-15s%n",
+                "Threads", "Total Time (s)", "Avg Latency (ms/msg)", "Throughput (msg/s)"); // หัวตาราง
         for (TestResult r : results) {
-            System.out.printf("%-10d %-15.4f %-20.4f %-15.4f%n",
-                    r.threads, r.totalTime / 1000.0, r.avgLatency, r.throughput);
+            System.out.printf("%-10d %-15.3f %-20.3f %-15.3f%n",
+                    r.threads, r.totalTime / 1000.0, r.avgLatency, r.throughput); // ผลลัพธ์แต่ละรอบ
         }
-        System.out.println("====================================");
+        System.out.println("======================================");
     }
 
-    // ส่งคำสั่งไปสั่งให้ Server เปลี่ยน thread
+    // ---------------- ฟังก์ชันส่งคำสั่งเปลี่ยนจำนวน threads ----------------
     private static void sendThreadChangeCommand(int threads) {
         try (Socket socket = new Socket(serverConnection.getAddress(), serverConnection.getPort());
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
 
-            // ใช้ client "Admin" ส่งคำสั่งพิเศษที่ server เข้าใจ เช่น "SET_THREADS <n>"
             out.println("HELLO Admin");
-            in.readLine(); // read welcome
-            out.println("SET_THREADS " + threads); // 🔸 Server มี setThreadCount() อยู่แล้ว
+            out.println("SET_THREADS " + threads); // ส่งคำสั่งเปลี่ยนจำนวน Thread ของ Broadcaster ไปยัง Server
             out.println("QUIT");
-        } catch (IOException e) {
+            out.flush();
+
+        } catch (Exception e) {
             System.err.println("[Admin] Error: " + e.getMessage());
         }
     }
 
-    // รันการทดสอบหนึ่งรอบ (ที่จำนวน thread เฉพาะ)
+    // ---------------- ฟังก์ชันรันการทดสอบหนึ่งรอบ ----------------
     private static TestResult runTestRound(int threads) throws Exception {
         ExecutorService pool = Executors.newFixedThreadPool(NUM_CLIENTS);
-        List<Future<Long>> latencyResults = new ArrayList<>();
+        List<Future<ClientResult>> futures = new ArrayList<>();
 
-        long globalStart = System.currentTimeMillis();
+        long globalStart = System.currentTimeMillis(); // เริ่มจับเวลารวมของการทดสอบ
 
         for (int i = 0; i < NUM_CLIENTS; i++) {
             final int id = i;
-            latencyResults.add(pool.submit(() -> runClient("User" + threads + "T_" + id)));
+            futures.add(pool.submit(() -> runClient("User" + threads + "T_" + id)));
         }
 
+        // ปิดการสร้างงานใหม่
         pool.shutdown();
-        pool.awaitTermination(120, TimeUnit.SECONDS);
+        // รอจนกว่า runClient ทุกตัวทำงานเสร็จ แต่ถ้าเกิน 300 มิลวิ จะเชื่อดทิ้ง
+        pool.awaitTermination(300, TimeUnit.SECONDS);
 
-        long totalLatency = 0;
-        int totalMessages = NUM_CLIENTS * MESSAGES_PER_CLIENT;
-        for (Future<Long> f : latencyResults)
-            totalLatency += f.get();
+        long totalLatencyNs = 0L;
+        int totalMessagesSent = 0;
+        int totalReceived = 0;
 
-        long totalTimeMs = System.currentTimeMillis() - globalStart;
-        double avgLatencyMs = totalLatency / (double) totalMessages / 1_000_000.0;
-        double throughput = totalMessages / (totalTimeMs / 1000.0);
+        // รวมผลจากทุก client
+        for (Future<ClientResult> f : futures) {
+            try {
+                ClientResult cr = f.get();
+                totalLatencyNs += cr.totalLatencyNs;
+                totalMessagesSent += cr.messagesSent;
+                totalReceived += cr.messagesReceived;
+            } catch (Exception e) {
+                System.err.println("[Test] Error getting future: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }
 
-        System.out.printf("[Threads=%d]: Time = %.4fs, AvgLatency = %.4fms, Throughput = %.4f msg/s%n",
-                threads, totalTimeMs / 1000.0, avgLatencyMs, throughput);
+        long totalTimeMs = System.currentTimeMillis() - globalStart; // หยุดจับเวลารวมของการทดสอบ
+        double avgLatencyMs = (totalMessagesSent > 0)
+                ? (totalLatencyNs / (double) totalMessagesSent) / 1_000_000.0
+                : 0.0;
+        double throughput = (totalTimeMs > 0)
+                ? (totalMessagesSent / (totalTimeMs / 1000.0))
+                : 0.0;
+
+        System.out.printf(
+                "[%dThreads]: Time = %.3fs, AvgLatency = %.3fms, Throughput = %.3f msg/s, TotalSent=%d, TotalReceived=%d%n",
+                threads, totalTimeMs / 1000.0, avgLatencyMs, throughput, totalMessagesSent, totalReceived);
 
         return new TestResult(threads, totalTimeMs, avgLatencyMs, throughput);
     }
 
-    // จำลอง client ที่ส่งข้อความไปยัง server
-    private static long runClient(String clientName) {
-        long totalLatency = 0;
+    // -------------------- จำลอง client หนึ่งตัว -------------------
+    private static ClientResult runClient(String clientName) {
+        long totalLatencyNs = 0;
+        int messagesSent = 0;
+        int messagesReceived = 0;
+
         try (Socket socket = new Socket(serverConnection.getAddress(), serverConnection.getPort());
                 BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
                 PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
 
-            socket.setSoTimeout(1000);
-
+            // ส่ง HELLO เพื่อ register ไปที่ Server
             out.println("HELLO " + clientName);
-            safeRead(in);
+            out.flush();
+            String welcome = readLineWithTimeout(in, socket, 3000); // อ่านข้อความที่ได้จาก Server
+            if (welcome == null) { // ถ้าเกิดข้อผิดพลาดในการ register
+                System.err.println("[" + clientName + "] No welcome from server. Aborting.");
+                return new ClientResult(totalLatencyNs, messagesSent, messagesReceived);
+            }
 
+            // ใช้คำสั่ง Join Room
             out.println("JOIN " + ROOM);
-            safeRead(in);
-            while (true) {
-                String line = in.readLine();
-                if (line != null && line.contains("joined the room."))
-                    break;
+            out.flush();
+
+            boolean joined = waitForJoinAck(in, socket, JOIN_ACK_TIMEOUT_MS); // รอจนกว่าจะได้เข้าห้องจริงๆ
+            if (!joined) { // ถ้าเข้าห้องไม่ได้
+                System.err.println("[" + clientName + "] join ack not received within timeout. Aborting.");
+                return new ClientResult(totalLatencyNs, messagesSent, messagesReceived);
             }
 
+            // ใช้คำสั่ง SAY เพื่อส่งข้อความไปตามจำนวนที่ตั้งไว้ แล้ววัด latency
             for (int i = 1; i <= MESSAGES_PER_CLIENT; i++) {
-                String msg = "Hello" + i + "from" + clientName;
-                long sendTime = System.nanoTime();
+                String msg = "Hello_" + i;
+                long startNs = System.nanoTime(); // เริ่มจับเวลาในการส่งข้อความ 1 ข้อความ
+
                 out.println("SAY " + ROOM + " " + msg);
-                totalLatency += System.nanoTime() - sendTime; // latency เป็น ns
+                out.flush();
+                messagesSent++;
+
+                // รอข้อความ broadcast กลับจากห้อง
+                long msgDeadline = System.currentTimeMillis() + MESSAGE_READ_TIMEOUT_MS;
+                boolean sawBroadcast = false;
+
+                while (System.currentTimeMillis() < msgDeadline) {
+                    String line = readLineWithTimeout(in, socket,
+                            Math.max(500, (int) (msgDeadline - System.currentTimeMillis())));
+                    if (line == null)
+                        continue;
+
+                    // ตรวจว่าเป็นข้อความ broadcast ของตัวเอง
+                    if (line.startsWith("[" + ROOM + "]") && line.contains(clientName + ":")) {
+                        long latencyNs = System.nanoTime() - startNs; // หยุดจับเวลาในการส่งข้อความ
+                        totalLatencyNs += latencyNs;
+                        messagesReceived++;
+                        sawBroadcast = true;
+                        break;
+                    }
+                }
+
+                if (!sawBroadcast) { // ถ้าไม่เห็นข้อความตัวเอง
+                    System.err.println(
+                            "[" + clientName + "] Did not see broadcast for message " + i + " within timeout.");
+                }
             }
 
+            // ใช้คำสั่ง QUIT เพื่อปิดการเชื่อมต่อแบบปกติ
             out.println("QUIT");
-            safeRead(in);
+            out.flush();
+            readLineWithTimeout(in, socket, 500);
+            Thread.sleep(80);
 
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            System.err.println("[" + clientName + "] Error: " + e.getMessage());
+            e.printStackTrace();
         }
-        return totalLatency;
+
+        return new ClientResult(totalLatencyNs, messagesSent, messagesReceived);
     }
 
-    // อ่านข้อมูลจาก server อย่างปลอดภัย (ไม่บล็อก)
-    private static void safeRead(BufferedReader in) {
+    // ------- อ่านข้อความที่ Server ส่งมา ถ้าเกินเวลาก็จะเชือดทิ้ง -------
+    private static String readLineWithTimeout(BufferedReader in, Socket socket, int timeoutMs) throws IOException {
+        // บันทึกค่า timeout เดิมไว้ (ถ้าตั้งไว้)
+        int originalTimeout = socket.getSoTimeout();
+
         try {
-            if (in.ready())
-                in.readLine(); // อ่านแล้ว discard
-        } catch (Exception ignore) {
+            socket.setSoTimeout(timeoutMs);
+            return in.readLine(); // รออ่านภายในเวลาที่กำหนด
+        } catch (SocketTimeoutException e) {
+            return null; // ถ้า timeout ก็คืนค่า null
+        } finally {
+            // คืนค่า timeout เดิมให้ socket (เพื่อไม่กระทบการอ่านครั้งถัดไป)
+            socket.setSoTimeout(originalTimeout);
         }
     }
 
-    // โครงสร้างเก็บผลการทดสอบ
+    // ----------- รอข้อความตอบรับจากการ JOIN ห้อง ---------------
+    private static boolean waitForJoinAck(BufferedReader in, Socket socket, int timeoutMs) throws IOException {
+        long start = System.currentTimeMillis();
+        while (System.currentTimeMillis() - start < timeoutMs) {
+            String line = readLineWithTimeout(in, socket, Math.min(1000, timeoutMs));
+            if (line == null)
+                continue;
+            if (line.contains(">>> Join room"))
+                return true;
+        }
+        return false;
+    }
+
+    // ---------------- RESULT CLASSES ----------------
+    private static class ClientResult {
+        final long totalLatencyNs;
+        final int messagesSent;
+        final int messagesReceived;
+
+        ClientResult(long totalLatencyNs, int messagesSent, int messagesReceived) {
+            this.totalLatencyNs = totalLatencyNs;
+            this.messagesSent = messagesSent;
+            this.messagesReceived = messagesReceived;
+        }
+    }
+
     private static class TestResult {
-        int threads;
-        long totalTime;
-        double avgLatency;
-        double throughput;
+        final int threads;
+        final long totalTime;
+        final double avgLatency;
+        final double throughput;
 
         TestResult(int threads, long totalTime, double avgLatency, double throughput) {
             this.threads = threads;

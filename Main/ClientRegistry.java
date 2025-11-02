@@ -4,7 +4,9 @@ import java.util.concurrent.*;
 
 public class ClientRegistry {
     // เก็บ reply queue ของแต่ละ client
-    private final List<User> connectedClients = new CopyOnWriteArrayList<>(); // ใช้ CopyOnWriteArrayList เพื่อความปลอดภัยในการเข้าถึงแบบหลาย threads
+    private final List<User> connectedClients = new CopyOnWriteArrayList<>(); // ใช้ CopyOnWriteArrayList
+                                                                              // เพื่อความปลอดภัยในการเข้าถึงแบบหลาย
+                                                                              // threads
 
     // เพิ่ม client เข้าสู่ระบบ
     public void registerClient(User user) {
@@ -42,11 +44,14 @@ public class ClientRegistry {
 
     // ส่งข้อความตรงไปยัง client ที่ระบุ
     public void sendDirectMessage(User user, String message) {
-        PrintWriter userOutput = user.getClientPrintWriter(); // ดึง PrintWriter ของ client คนที่จะส่งข้อความไปหา
-        if (userOutput != null) {
-            userOutput.println(message);
-        } else {
-            System.out.println("[System]: Not found receiver: " + user.getClientId());
+        synchronized (user) {
+            PrintWriter userOutput = user.getClientPrintWriter(); // ดึง PrintWriter ของ client คนที่จะส่งข้อความไปหา
+            if (userOutput != null) {
+                userOutput.println(message);
+                userOutput.flush();
+            } else {
+                System.out.println("[System]: Not found receiver: " + user.getClientId());
+            }
         }
     }
 }

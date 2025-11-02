@@ -21,15 +21,14 @@ class ClientCommand {
 }
 
 public class Server_Os {
-    private final int MAX_CONTROLQUEUE_SIZE = 1000;
-    private final ServerConnection serverConnection = new ServerConnection(); // ใช้ดึงการตั้งค่าเซิร์ฟเวอร์
-    private static final RoomRegistry roomRegistry = new RoomRegistry(); // ใช้เก็บห้องแชททั้งหมด
-    private static final ClientRegistry clientRegistry = new ClientRegistry(); // ใช้เก็บ client ที่เชื่อมต่อเข้ามา
-    // ใช้กระจายข้อความไปยังสมาชิกในห้องแชทต่างๆ ทำเป็น static เพื่อให้เข้าถึงได้จากที่อื่น(ใช้ในการทดสอบ)
-    private static final BroadcasterPool broadcasterPool = new BroadcasterPool(3, roomRegistry, clientRegistry); 
+    private final int MAX_CONTROLQUEUE_SIZE = 5000;
+    private final int START_THREADS = 3;
+    private final ServerConnection serverConnection = new ServerConnection();
+    private final RoomRegistry roomRegistry = new RoomRegistry(); // ใช้เก็บห้องแชททั้งหมด
+    private final ClientRegistry clientRegistry = new ClientRegistry(); // ใช้เก็บ client ที่เชื่อมต่อเข้ามา
+    private final BroadcasterPool broadcasterPool = new BroadcasterPool(START_THREADS, roomRegistry, clientRegistry); 
     private final BlockingQueue<ClientCommand> controlQueue = new LinkedBlockingQueue<>(MAX_CONTROLQUEUE_SIZE);
-    // คิวเก็บคำสั่ง ping จาก client
-    private final BlockingQueue<ClientCommand> heartbeatQueue = new LinkedBlockingQueue<>(); 
+    private final BlockingQueue<ClientCommand> heartbeatQueue = new LinkedBlockingQueue<>();
 
     public static void main(String[] args) {
         new Server_Os().startServer();
@@ -75,7 +74,7 @@ public class Server_Os {
 
         while (true) {
             try {
-                // V รอคำสั่งping ทุก5วิ จะไปดูในคิว V
+                // รอคำสั่งping ทุก5วิ จะไปดูในคิว
                 ClientCommand command = heartbeatQueue.poll(CHECK_INTERVAL, java.util.concurrent.TimeUnit.MILLISECONDS);
                 long now = System.currentTimeMillis();
 
@@ -113,10 +112,7 @@ public class Server_Os {
         if (cmd.command.isEmpty())
             return;
 
-        String[] parts = cmd.command.split(" ", 4);
-        if (parts.length > 3) {
-            return;
-        }
+        String[] parts = cmd.command.split(" ", 3);
         String command = parts[0].toUpperCase();
         String param1 = (parts.length > 1) ? parts[1] : "";
         String param2 = (parts.length > 2) ? parts[2] : "";
@@ -202,7 +198,6 @@ public class Server_Os {
                 int threads = Integer.parseInt(param1);
                 System.out.println("[System]: Broadcaster threads set to " + threads);
                 broadcasterPool.setThreadCount(threads);
-                System.out.println("[Server] broadcasterPool = " + System.identityHashCode(broadcasterPool));
             } catch (NumberFormatException e) {
                 System.out.println("[System]: Invalid thread count: " + param1);
             }
