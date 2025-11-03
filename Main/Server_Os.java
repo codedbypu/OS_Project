@@ -22,7 +22,7 @@ class ClientCommand {
 
 public class Server_Os {
     private final int MAX_CONTROLQUEUE_SIZE = 5000;
-    private final int START_THREADS = 3;
+    private final int START_THREADS = 12;
     private final ServerConnection serverConnection = new ServerConnection();
     private final RoomRegistry roomRegistry = new RoomRegistry(); // ใช้เก็บห้องแชททั้งหมด
     private final ClientRegistry clientRegistry = new ClientRegistry(); // ใช้เก็บ client ที่เชื่อมต่อเข้ามา

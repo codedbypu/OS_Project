@@ -75,12 +75,10 @@ public class BroadcasterPool {
                     String message = task.getMessage();
 
                     Set<User> members = roomRegistry.getMembers(room); // ดึงสมาชิกในห้องนั้นๆ
-                    synchronized (room.intern()) {
-                        if (members == null || members.isEmpty())
-                            continue;
-                        for (User member : members) {
-                            clientRegistry.sendDirectMessage(member, "[" + room + "]" + message); // ส่งข้อความไปยังสมาชิกแต่ละคน
-                        }
+                    if (members == null || members.isEmpty())
+                        continue;
+                    for (User member : members) {
+                        clientRegistry.sendDirectMessage(member, "[" + room + "]" + message); // ส่งข้อความไปยังสมาชิกแต่ละคน
                     }
 
                 }
