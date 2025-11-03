@@ -21,6 +21,7 @@ class ClientCommand {
 }
 
 public class Server_Os {
+    private final int MAX_SOCKET_SIZE = 250;
     private final int MAX_CONTROLQUEUE_SIZE = 5000;
     private final int START_THREADS = 12;
     private final ServerConnection serverConnection = new ServerConnection();
@@ -38,7 +39,7 @@ public class Server_Os {
         new Thread(this::routerLoop, "RouterThread").start();
         new Thread(this::heartbeatWorker, "HeartbeatWorker").start();
 
-        try (ServerSocket serverSocket = new ServerSocket(serverConnection.getPort())) {
+        try (ServerSocket serverSocket = new ServerSocket(serverConnection.getPort(),MAX_SOCKET_SIZE)) {
             System.out.println("[System]: Server started on port " + serverConnection.getPort());
             while (true) {
                 Socket socket = serverSocket.accept();
