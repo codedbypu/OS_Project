@@ -1,10 +1,17 @@
 import java.util.Set;
 import java.util.concurrent.*;
 
+// ----------- BroadcasterPool: จัดการ thread pool สำหรับกระจายข้อความแบบ concurrent --------------
+// หน้าที่หลัก: สร้าง worker threads (Broadcaster) หลายตัว เพื่อรับงาน (BroadcastTask)
 public class BroadcasterPool {
-    private final BlockingQueue<BroadcastTask> taskQueue = new LinkedBlockingQueue<>(); // ใช้เก็บงานกระจายข้อความ
+
+    // คิวเก็บงานที่จะให้ Broadcaster ทำ
+    private final BlockingQueue<BroadcastTask> taskQueue = new LinkedBlockingQueue<>();
+
+    // สำหรับเข้าถึงข้อมูล client และ room ที่มีอยู่ในระบบ
     private final ClientRegistry clientRegistry;
     private final RoomRegistry roomRegistry;
+
     private ExecutorService pool;
     private int numThreads;
 
@@ -16,6 +23,7 @@ public class BroadcasterPool {
         startPool(numThreads);
     }
 
+    // สร้างและเริ่ม Broadcaster threads
     private void startPool(int threads) {
         pool = Executors.newFixedThreadPool(threads);
         for (int i = 0; i < threads; i++) {
@@ -23,7 +31,7 @@ public class BroadcasterPool {
         }
     }
 
-    // ---------------- ปรับจำนวน thread ----------------
+    // ---------------- ปรับจำนวน threads ระหว่างรันไทม์ ----------------
     public synchronized void setThreadCount(int threads) {
         if (threads == this.numThreads)
             return;
@@ -32,24 +40,25 @@ public class BroadcasterPool {
         this.numThreads = threads;
 
         if (diff > 0) {
-            // เพิ่ม thread ใหม่
+            // เพิ่ม threads ใหม่
             for (int i = 0; i < diff; i++) {
                 pool.submit(new Broadcaster(taskQueue, roomRegistry, clientRegistry));
             }
         } else if (diff < 0) {
-            // ลด thread (ใช้ trick: interrupt thread บางตัวให้หลุดจาก loop)
+            // ลด threads ส่ง "STOP_THREAD" เพื่อสั่งให้บาง thread หยุดทำงาน
             for (int i = 0; i < -diff; i++) {
                 taskQueue.offer(new BroadcastTask("__CONTROL__", "STOP_THREAD"));
             }
         }
     }
 
-    // ---------------- ฟังก์ชันส่งงานกระจายข้อความ ----------------
+    // ---------------- ฟังก์ชันรับงาน broadcast จากภายนอก ----------------
     public void submitTask(BroadcastTask task) {
         taskQueue.offer(task);
     }
 
     // --------------------------- Broadcaster class ---------------------------
+    // แต่ละ Broadcaster เป็น worker thread ที่วนรอรับงานจาก taskQueue
     public class Broadcaster implements Runnable {
         private final BlockingQueue<BroadcastTask> taskQueue;
         private final RoomRegistry roomRegistry;
@@ -57,32 +66,37 @@ public class BroadcasterPool {
 
         public Broadcaster(BlockingQueue<BroadcastTask> taskQueue, RoomRegistry roomRegistry,
                 ClientRegistry clientRegistry) {
-            this.taskQueue = taskQueue; // ดึงมาจาก pool เพื่อดูทำงานที่ต้องทำ
-            this.roomRegistry = roomRegistry; // ดึงมาเพื่อดูสมาชิกในห้อง
-            this.clientRegistry = clientRegistry; // ดึงมาเพื่อส่งข้อความไปยังสมาชิก
+            this.taskQueue = taskQueue;
+            this.roomRegistry = roomRegistry;
+            this.clientRegistry = clientRegistry;
         }
 
         @Override
         public void run() {
             try {
                 while (true) {
-                    BroadcastTask task = taskQueue.take(); // ดึงงานจาก taskQueue ออกมาทำ
+                    // ดึงงานออกจากคิว (block จนกว่าจะมีงานใหม่เข้ามา)
+                    BroadcastTask task = taskQueue.take();
+
                     if ("__CONTROL__".equals(task.getRoomName()) && "STOP_THREAD".equals(task.getMessage())) {
-                        return; // ออกจาก loop
+                        return;
                     }
 
                     String room = task.getRoomName();
                     String message = task.getMessage();
 
-                    Set<User> members = roomRegistry.getMembers(room); // ดึงสมาชิกในห้องนั้นๆ
+                    // ดึงรายชื่อสมาชิก
+                    Set<User> members = roomRegistry.getMembers(room);
                     if (members == null || members.isEmpty())
                         continue;
-                    for (User member : members) {
-                        clientRegistry.sendDirectMessage(member, "[" + room + "]" + message); // ส่งข้อความไปยังสมาชิกแต่ละคน
-                    }
 
+                    // ส่งข้อความไปยังสมาชิกแต่ละคนในห้องนั้น
+                    for (User member : members) {
+                        clientRegistry.sendDirectMessage(member, "[" + room + "] " + message);
+                    }
                 }
             } catch (InterruptedException e) {
+                // ถ้า thread ถูก interrupt ให้หยุดการทำงานอย่างปลอดภัย
                 Thread.currentThread().interrupt();
             }
         }
