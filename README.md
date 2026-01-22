@@ -1,5 +1,7 @@
 # 📘 OS_8E88 Project Documentation
 
+> Project นี้พัฒนาเป็นส่วนหนึ่งของวิชา Operating System ร่วมกับทีม โดยได้นำมา re-host เพื่อใช้สำหรับแสดงผลงาน
+
 ## 🛠️ ขั้นตอนการใช้งานโปรแกรม (User Guide)
 
 ### 1. การเริ่มต้นระบบ (Startup)
@@ -77,3 +79,4 @@
 > **Summary:** From this 5 run test, the **Best number of threads is 12 threads**.
 
 Report: [สไลด์นำเสนอผลงาน](https://www.canva.com/design/DAG_IXOCFBY/l6pwOVE02gfsJ71X4dtVLw/edit?utm_content=DAG_IXOCFBY&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton)
+
